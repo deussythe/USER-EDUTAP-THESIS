@@ -1,13 +1,14 @@
 import { ShoppingBag, Clock, Share2, LogOut } from "lucide-react"
-
+import { Settings } from "lucide-react"
 interface ParentHeaderProps {
     username: string
     currentTime: string
     onShare: () => void
     onLogout: () => void
+    onSettingsClick: () => void
 }
 
-export function ParentHeader({ username, currentTime, onShare, onLogout }: ParentHeaderProps) {
+export function ParentHeader({ username, currentTime, onShare, onLogout, onSettingsClick }: ParentHeaderProps) {
     return (
         <header className="bg-gradient-to-r from-red-950 to-red-900 border-b border-red-900 px-4 py-3">
             <div className="flex items-center justify-between gap-2">
@@ -37,6 +38,12 @@ export function ParentHeader({ username, currentTime, onShare, onLogout }: Paren
                         <span className="hidden sm:inline">Share</span>
                     </button>
                     <button
+                        onClick={onSettingsClick}
+                        className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm text-white hover:bg-white/20 transition"
+                    >
+                        <Settings className="h-4 w-4" />
+                    </button>
+                    <button
                         onClick={onLogout}
                         className="flex items-center gap-1 rounded-lg bg-white border border-white px-2 py-1.5 text-xs font-semibold text-red-900 hover:bg-red-50"
                     >
@@ -60,11 +67,12 @@ export default function App() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <ParentHeader 
+            <ParentHeader
                 username="Maria Santos"
                 currentTime="2:30 PM"
                 onShare={handleShare}
                 onLogout={handleLogout}
+                onSettingsClick={() => { }}  // Add this line
             />
             <div className="p-8">
                 <div className="bg-white rounded-lg border border-gray-200 p-6">

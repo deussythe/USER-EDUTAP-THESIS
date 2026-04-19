@@ -18,25 +18,22 @@ interface NotificationsProps {
 
 export function Notifications({ notifications, onNotificationClick, onClearAll }: NotificationsProps) {
     return (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm h-80 flex flex-col">
+            <div className="mb-4 flex items-center justify-between shrink-0">
                 <h2 className="text-base font-bold text-gray-900">Notifications</h2>
                 <div className="flex items-center gap-2">
                     <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
                         {notifications.length} New
                     </span>
                     {notifications.length > 0 && (
-                        <button
-                            onClick={onClearAll}
-                            className="text-xs text-red-600 hover:text-red-700"
-                        >
+                        <button onClick={onClearAll} className="text-xs text-red-600 hover:text-red-700">
                             Clear All
                         </button>
                     )}
                 </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 overflow-y-auto pr-1 flex-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 {notifications.length === 0 ? (
                     <div className="py-8 text-center text-gray-500">
                         <Bell className="mx-auto mb-2 h-8 w-8 text-gray-300" />
@@ -49,7 +46,7 @@ export function Notifications({ notifications, onNotificationClick, onClearAll }
                             onClick={() => onNotificationClick(notification)}
                             className="flex w-full items-start gap-3 border-b border-gray-100 pb-3 text-left transition hover:bg-gray-50 last:border-0"
                         >
-                            <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${notification.icon === "purchase" ? "bg-blue-100" : "bg-red-100"}`}>
+                            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${notification.icon === "purchase" ? "bg-blue-100" : "bg-red-100"}`}>
                                 {notification.icon === "purchase" ? (
                                     <ShoppingBag className="h-4 w-4 text-blue-600" />
                                 ) : (
@@ -62,8 +59,8 @@ export function Notifications({ notifications, onNotificationClick, onClearAll }
                                 <div className="mt-1 text-xs text-gray-400">{notification.timestamp}</div>
                             </div>
                             {notification.amount && (
-                                <div className="text-sm font-bold text-red-600">
-                                    {notification.amount < 0 ? "- " : ""}₱{Math.abs(notification.amount).toFixed(2)}
+                                <div className={`text-sm font-bold shrink-0 ${notification.amount < 0 ? "text-red-600" : "text-green-600"}`}>
+                                    {notification.amount < 0 ? "−" : "+"}₱{Math.abs(notification.amount).toFixed(2)}
                                 </div>
                             )}
                         </button>

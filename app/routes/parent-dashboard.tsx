@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Check } from "lucide-react"
 import { ParentHeader } from "@/components/parent/parent-header"
 import { Notifications } from "@/components/parent/notifications"
@@ -9,8 +9,11 @@ import { BalanceSidebar } from "@/components/parent/balance-sidebar"
 import { TopUpModal } from "@/components/parent/modals/topup-modal"
 import { NotificationDetailsModal } from "@/components/parent/modals/notification-details-modal"
 import { ActivityFilterModal } from "@/components/parent/modals/activity-filter-modal"
+import { SettingsModal } from "@/components/parent/modals/settings-modal"
 import { DailySpendingLimit } from "@/components/parent/daily-spending-limit"
-import { collection, query, where, onSnapshot, addDoc, orderBy } from "firebase/firestore"
+import { SpendingStats } from "@/components/parent/spending-stats"
+import { SpendingTrend } from "@/components/parent/spending-trend"
+import { collection, query, where, onSnapshot, addDoc, orderBy, updateDoc, doc } from "firebase/firestore"
 import { db, auth } from "../configs/firebase"
 import { onAuthStateChanged } from "firebase/auth"
 
@@ -27,7 +30,9 @@ interface Notification {
 interface Activity {
     id: string
     item: string
+    items: { name: string; qty: number; price: number }[]
     date: string
+    rawDate: string
     time: string
     amount: number
     type: "expense" | "income"
@@ -39,6 +44,7 @@ export default function ParentDashboard() {
     const [studentData, setStudentData] = useState<any>(null)
     const [selectedPayment, setSelectedPayment] = useState<string | null>(null)
     const [showTopUpModal, setShowTopUpModal] = useState(false)
+    const [showSettingsModal, setShowSettingsModal] = useState(false)
     const [showSuccessMessage, setShowSuccessMessage] = useState(false)
     const [showNotificationDetails, setShowNotificationDetails] = useState(false)
     const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null)
@@ -46,6 +52,10 @@ export default function ParentDashboard() {
     const [activityFilter, setActivityFilter] = useState<"all" | "expense" | "income">("all")
     const [notifications, setNotifications] = useState<Notification[]>([])
     const [recentActivity, setRecentActivity] = useState<Activity[]>([])
+    const [todaySpent, setTodaySpent] = useState(0)
+    const [dailyLimit, setDailyLimit] = useState(100)
+    const [showFloatingTopUp, setShowFloatingTopUp] = useState(false)
+    const topUpCardRef = useRef<HTMLDivElement>(null)
 
     const paymentMethods = [
         { id: "cash", name: "Cash", icon: "💵" },
@@ -96,7 +106,6 @@ export default function ParentDashboard() {
     useEffect(() => {
         if (!studentData?.id) return
 
-        // Listener 1: Transactions
         const txnUnsubscribe = onSnapshot(
             query(
                 collection(db, "transactions"),
@@ -104,6 +113,8 @@ export default function ParentDashboard() {
                 orderBy("timestamp", "desc")
             ),
             (snapshot) => {
+                console.log("📦 Transactions found:", snapshot.docs.length)
+
                 const txns = snapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
@@ -120,25 +131,33 @@ export default function ParentDashboard() {
                         hour: '2-digit', minute: '2-digit'
                     })
                 }))
+
                 setNotifications(prev => {
                     const topupNotifs = prev.filter(n => n.title.includes("Top-Up"))
                     return [...topupNotifs, ...newNotifications].slice(0, 5)
                 })
 
-                const newActivity = txns.slice(0, 10).map(txn => ({
-                    id: txn.id,
-                    item: txn.items?.map((i: any) => i.name).join(", ") || "Purchase",
-                    date: new Date(txn.timestamp).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }),
-                    time: new Date(txn.timestamp).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }),
-                    amount: -txn.total,
-                    type: "expense" as const,
-                    category: "Food & Drinks"
-                }))
+                const newActivity = txns.slice(0, 10).map(txn => {
+                    const ts = txn.timestamp?.toDate?.() ?? new Date(txn.timestamp)
+                    return {
+                        id: txn.id,
+                        item: txn.items?.map((i: any) => i.name).join(", ") || "Purchase",
+                        items: txn.items || [],
+                        date: ts.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }),
+                        rawDate: ts.toISOString(),
+                        time: ts.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }),
+                        amount: -txn.total,
+                        type: "expense" as const,
+                        category: "Food & Drinks"
+                    }
+                })
                 setRecentActivity(newActivity)
+            },
+            (error) => {
+                console.error("❌ Firestore error:", error)
             }
         )
 
-        // Listener 2: Top-up requests status changes
         const topupUnsubscribe = onSnapshot(
             query(
                 collection(db, "topup_requests"),
@@ -175,8 +194,52 @@ export default function ParentDashboard() {
         }
     }, [studentData?.id])
 
-    
+    // Effect 4: Today's spending
+    useEffect(() => {
+        if (!studentData?.id) return
+
+        if (studentData.dailyLimit) setDailyLimit(studentData.dailyLimit)
+
+        const startOfToday = new Date()
+        startOfToday.setHours(0, 0, 0, 0)
+        const startTimestamp = startOfToday.getTime()
+
+        const spendingUnsubscribe = onSnapshot(
+            query(
+                collection(db, "transactions"),
+                where("studentId", "==", studentData.id),
+                where("timestamp", ">=", startTimestamp),
+                orderBy("timestamp", "asc")
+            ),
+            (snapshot) => {
+                const total = snapshot.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0)
+                setTodaySpent(total)
+            }
+        )
+
+        return () => spendingUnsubscribe()
+    }, [studentData?.id, studentData?.dailyLimit])
+
+    // Effect 5: Floating top-up visibility
+    useEffect(() => {
+        const el = topUpCardRef.current
+        if (!el) return
+        const observer = new IntersectionObserver(
+            ([entry]) => setShowFloatingTopUp(!entry.isIntersecting),
+            { threshold: 0 }
+        )
+        observer.observe(el)
+        return () => observer.disconnect()
+    }, [])
+
     // Handlers
+    const handleLimitChange = async (newLimit: number) => {
+        setDailyLimit(newLimit)
+        if (studentData?.id) {
+            await updateDoc(doc(db, "students", studentData.id), { dailyLimit: newLimit })
+        }
+    }
+
     const handleLogout = () => {
         localStorage.removeItem('username')
         localStorage.removeItem('role')
@@ -188,7 +251,6 @@ export default function ParentDashboard() {
             alert("Please fill in all details, including the Reference Number.")
             return
         }
-
         try {
             await addDoc(collection(db, "topup_requests"), {
                 studentId: studentData.id || studentData.studentId,
@@ -200,7 +262,6 @@ export default function ParentDashboard() {
                 paymentMethod: "GCash",
                 timestamp: Date.now()
             })
-
             alert("Ticket Submitted! Please wait for the Admin to verify your Reference Number.")
             setShowTopUpModal(false)
         } catch (error) {
@@ -221,6 +282,12 @@ export default function ParentDashboard() {
         return activity.type === activityFilter
     })
 
+    const transactions = recentActivity.map(a => ({
+        amount: Math.abs(a.amount),
+        date: a.rawDate,
+        item: a.item,
+    }))
+
     return (
         <div className="flex h-screen flex-col bg-gray-50">
             {showSuccessMessage && (
@@ -230,16 +297,33 @@ export default function ParentDashboard() {
                 </div>
             )}
 
+            {/* Pass onSettingsClick to header */}
             <ParentHeader
                 username={studentData?.name || "Parent"}
                 currentTime={currentTime}
                 onShare={handleShare}
                 onLogout={handleLogout}
+                onSettingsClick={() => setShowSettingsModal(true)}
             />
 
             <div className="flex flex-1 overflow-hidden flex-col lg:flex-row">
                 <div className="flex-1 overflow-y-auto p-3 sm:p-6 pb-24 lg:pb-6">
+
+                    {/* Mobile-only Balance Card */}
+                    <div ref={topUpCardRef} className="lg:hidden mb-4 rounded-xl bg-[#8B0000] p-4 text-white">
+                        <p className="text-xs opacity-75 mb-1">{studentData?.name || "Student"}'s Wallet</p>
+                        <p className="text-3xl font-bold">₱{(studentData?.balance || 0).toFixed(2)}</p>
+                        <p className="text-xs opacity-75 mt-1">Last updated just now</p>
+                        <button
+                            onClick={() => setShowTopUpModal(true)}
+                            className="mt-3 w-full rounded-lg bg-white py-2 text-sm font-semibold text-[#8B0000] hover:bg-gray-100"
+                        >
+                            Top Up Wallet
+                        </button>
+                    </div>
+
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                        {/* Left column */}
                         <div className="space-y-4">
                             <Notifications
                                 notifications={notifications}
@@ -248,12 +332,29 @@ export default function ParentDashboard() {
                             />
                             <RecentActivity
                                 activities={filteredActivity}
-                                onFilterClick={() => setShowActivityFilter(true)}
                                 onDownloadClick={() => alert("Report downloaded!")}
                             />
                         </div>
-                        <DailySpendingLimit />
+
+                        {/* Right column */}
+                        <div className="space-y-4">
+                            <DailySpendingLimit
+                                todaySpent={todaySpent}
+                                dailyLimit={dailyLimit}
+                                transactions={transactions}
+                                onLimitChange={handleLimitChange}
+                            />
+                            <SpendingStats
+                                transactions={transactions}
+                                dailyLimit={dailyLimit}
+                            />
+                            <SpendingTrend
+                                transactions={transactions}
+                                dailyLimit={dailyLimit}
+                            />
+                        </div>
                     </div>
+
                 </div>
 
                 <div className="hidden lg:block lg:w-80 xl:w-96 border-l border-gray-200">
@@ -267,11 +368,35 @@ export default function ParentDashboard() {
                 </div>
             </div>
 
+            {/* Floating Top Up */}
+            {showFloatingTopUp && (
+                <button
+                    onClick={() => setShowTopUpModal(true)}
+                    className="lg:hidden fixed bottom-6 right-5 z-50 flex items-center gap-2 bg-[#8B0000] text-white text-sm font-semibold px-5 py-3 rounded-full shadow-xl active:scale-95 transition-transform"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    Top Up
+                </button>
+            )}
+
             <TopUpModal
                 isOpen={showTopUpModal}
                 onClose={() => setShowTopUpModal(false)}
                 onSubmit={handleTopUpRequest}
             />
+
+            {showSettingsModal && (
+                <SettingsModal
+                    isOpen={showSettingsModal}
+                    onClose={() => setShowSettingsModal(false)}
+                    currentName={studentData?.name || ""}
+                    currentEmail={auth.currentUser?.email || ""}
+                    studentId={studentData?.id || ""}
+                />
+            )}
 
             <ActivityFilterModal
                 isOpen={showActivityFilter}
