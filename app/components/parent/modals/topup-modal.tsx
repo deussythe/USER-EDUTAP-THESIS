@@ -1,66 +1,56 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from 'app/configs/firebase'; // Ensure this path is correct
+import { db } from '../../../configs/firebase';
+ // Ensure path is correct
 
 interface TopUpModalProps {
     isOpen: boolean;
     onClose: () => void;
+    // NEW: Add this line so the dashboard can listen to the submit button
+    onSubmit: (amount: string, refNumber: string) => void;
 }
 
-export function TopUpModal({ isOpen, onClose }: TopUpModalProps) {
+export function TopUpModal({ isOpen, onClose, onSubmit }: TopUpModalProps) {
     const [amount, setAmount] = useState('');
     const [refNumber, setRefNumber] = useState('');
     const [isZoomed, setIsZoomed] = useState(false);
-
-    // NEW: State to hold the links from Firebase
     const [qrMap, setQrMap] = useState<Record<string, string>>({});
-
     const quickAmounts = [50, 100, 200, 500];
 
-    // NEW: Fetch links from Firebase when the component mounts
     useEffect(() => {
         const docRef = doc(db, "settings", "payment_qr");
-
         const unsubscribe = onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {
                 setQrMap(docSnap.data() as Record<string, string>);
             }
         });
-
         return () => unsubscribe();
     }, []);
 
-    // UPDATED: Now uses the state from Firebase instead of hardcoded links
     const getQRCodePath = () => {
-        // If the amount matches a key in Firebase (50, 100, etc)
         if (amount && qrMap[amount]) {
             return qrMap[amount];
         }
-
-        // Try to use the generic link from Firebase, but if it's not loaded yet, 
-        // use your hardcoded Cloudinary link so it NEVER shows a broken image!
         return qrMap['generic'] || 'https://res.cloudinary.com/dd8hz51ff/image/upload/v1776419738/IMG_20260417_175022_szpu2a.jpg';
     };
 
     if (!isOpen) return null;
 
-// ... (rest of your handleSubmit and return code stays exactly the same)
-
     const handleSubmit = () => {
-        console.log("Submitting:", { amount, refNumber, method: 'GCash' });
-        // TODO: Add your Firebase logic here
-        onClose();
+        // Send the data back to the Parent Dashboard!
+        onSubmit(amount, refNumber);
+
+        // Clear the inputs for the next time
+        setAmount('');
+        setRefNumber('');
     };
 
     return (
         <>
-            <div
-                className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-                onClick={onClose}
-            >
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                 <div
-                    className="w-[400px] max-h-[95vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-xl scrollbar-hide"
+                    className="w-full max-w-[400px] mx-4 max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-4 sm:p-5 shadow-xl scrollbar-hide"
                     onClick={(e) => e.stopPropagation()}
                 >
                     {/* Header */}
@@ -83,7 +73,7 @@ export function TopUpModal({ isOpen, onClose }: TopUpModalProps) {
                             className="mb-2 h-64 w-64 cursor-pointer rounded-lg object-contain shadow-sm transition-transform duration-300 hover:scale-105"
                         />
 
-                        <p className="text-xs font-medium text-gray-500">EDUTAP Admin • 0912 *** ****</p>
+                        <p className="text-xs font-medium text-gray-500">EDUTAP Admin • 09 ** *** ****</p>
                         {amount && (
                             <p className="mt-1 text-xs font-bold text-blue-600">
                                 {['50', '100', '200', '500'].includes(amount)
@@ -167,7 +157,7 @@ export function TopUpModal({ isOpen, onClose }: TopUpModalProps) {
                         <img
                             src={getQRCodePath()}
                             alt="Zoomed GCash QR Code"
-                            className="h-[80vh] w-[80vw] rounded-xl object-contain shadow-2xl"
+                            className="max-h-[75vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
                         />
                         <p className="mt-4 text-sm font-medium text-white">
                             Scan with GCash App

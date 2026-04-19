@@ -27,7 +27,7 @@ export function BalanceSidebar({ balance, paymentMethods, selectedPayment, onPay
     }
 
     return (
-        <div className="flex w-96 flex-col border-l border-gray-200 bg-white p-6">
+        <div className="flex w-full flex-col bg-white p-4 sm:p-6">
             <div className="mb-6">
                 <h2 className="text-lg font-bold text-gray-900">Current Balance</h2>
                 <p className="text-sm text-gray-500">Jane Parent's Wallet</p>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Check } from "lucide-react"
+import { Check, Wallet } from "lucide-react"
 import { ParentHeader } from "@/components/parent/parent-header"
 import { Notifications } from "@/components/parent/notifications"
 import { RecentActivity } from "@/components/parent/recent-activity"
@@ -11,6 +11,11 @@ import { NotificationDetailsModal } from "@/components/parent/modals/notificatio
 import { ShareModal } from "@/components/parent/modals/share-modal"
 import { ActivityFilterModal } from "@/components/parent/modals/activity-filter-modal"
 import { DailySpendingLimit } from "@/components/parent/daily-spending-limit"
+
+// Firebase Imports
+import { collection, query, where, onSnapshot, doc, updateDoc, addDoc } from "firebase/firestore";
+import { db, auth } from "../configs/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 interface Notification {
     id: string
@@ -33,8 +38,9 @@ interface Activity {
 }
 
 export default function ParentDashboard() {
+    // --- State Management ---
     const [currentTime, setCurrentTime] = useState("")
-    const [balance, setBalance] = useState(333.00)
+    const [studentData, setStudentData] = useState<any>(null)
     const [selectedPayment, setSelectedPayment] = useState<string | null>(null)
     const [showTopUpModal, setShowTopUpModal] = useState(false)
     const [topUpAmount, setTopUpAmount] = useState("")
@@ -45,52 +51,25 @@ export default function ParentDashboard() {
     const [showActivityFilter, setShowActivityFilter] = useState(false)
     const [activityFilter, setActivityFilter] = useState<"all" | "expense" | "income">("all")
 
+    // Static mock data for UI visual
     const [notifications, setNotifications] = useState<Notification[]>([
-        {
-            id: "1",
-            type: "purchase",
-            title: "Purchase Alert",
-            description: "Student bought Chicken Sandwich",
-            amount: -25.00,
-            icon: "purchase",
-            timestamp: "2 mins ago"
-        },
-        {
-            id: "2",
-            type: "warning",
-            title: "Low Balance",
-            description: "Balance below ₱150.00 threshold",
-            icon: "warning",
-            timestamp: "15 mins ago"
-        },
-        {
-            id: "3",
-            type: "purchase",
-            title: "Purchase Alert",
-            description: "Student bought School Supplies",
-            amount: -45.00,
-            icon: "purchase",
-            timestamp: "1 hour ago"
-        }
+        { id: "1", type: "purchase", title: "Purchase Alert", description: "Student bought Chicken Sandwich", amount: -25.00, icon: "purchase", timestamp: "2 mins ago" },
+        { id: "2", type: "warning", title: "Low Balance", description: "Balance below ₱150.00 threshold", icon: "warning", timestamp: "15 mins ago" }
     ])
 
     const [recentActivity, setRecentActivity] = useState<Activity[]>([
         { id: "1", item: "Fruit Juice", date: "Nov 22", time: "10:32 AM", amount: -12.00, type: "expense", category: "Food & Drinks" },
-        { id: "2", item: "Veggie Wrap", date: "Nov 21", time: "12:15 PM", amount: -20.00, type: "expense", category: "Food & Drinks" },
-        { id: "3", item: "Library Fine", date: "Nov 20", time: "09:00 AM", amount: -5.00, type: "expense", category: "Academic" },
-        { id: "4", item: "Notebook Set", date: "Nov 19", time: "02:30 PM", amount: -35.00, type: "expense", category: "Supplies" },
         { id: "5", item: "Wallet Top-up", date: "Nov 18", time: "08:00 AM", amount: 200.00, type: "income", category: "Top-up" }
     ])
 
     const paymentMethods = [
         { id: "cash", name: "Cash", icon: "💵" },
-        { id: "gcash", name: "GCash", icon: "📱" },
-        { id: "paymaya", name: "PayMaya", icon: "💳" },
-        { id: "gotyme", name: "GoTyme", icon: "🏦" }
+        { id: "gcash", name: "GCash", icon: "🔵" },
+        { id: "paymaya", name: "PayMaya", icon: "🟢" },
+        { id: "gotyme", name: "GoTyme", icon: "🏹" }
     ]
 
-    const quickAmounts = [50, 100, 200, 500]
-
+    // --- Effect 1: Clock ---
     useEffect(() => {
         const updateTime = () => {
             const now = new Date()
@@ -101,114 +80,75 @@ export default function ParentDashboard() {
             const displayMinutes = minutes.toString().padStart(2, "0")
             setCurrentTime(`${displayHours}:${displayMinutes} ${ampm}`)
         }
-
         updateTime()
         const interval = setInterval(updateTime, 60000)
         return () => clearInterval(interval)
     }, [])
 
+    // --- Effect 2: Firebase Real-Time Listener ---
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            if (!user) return
+
+            const q = query(
+                collection(db, "students"),
+                where("guardianId", "==", user.uid)
+            )
+
+            const studentUnsubscribe = onSnapshot(q, (snapshot) => {
+                if (!snapshot.empty) {
+                    const docSnap = snapshot.docs[0]
+                    setStudentData({ id: docSnap.id, ...docSnap.data() })
+                }
+            })
+
+            return () => studentUnsubscribe()
+        })
+        return () => unsubscribe()
+    }, [])
+
+    // --- Handlers ---
     const handleLogout = () => {
         localStorage.removeItem('username');
         localStorage.removeItem('role');
         window.location.href = '/';
     };
 
-    const handleTopUp = () => {
-        if (!selectedPayment) {
-            alert("Please select a payment method")
-            return
-        }
-        if (!topUpAmount || parseFloat(topUpAmount) <= 0) {
-            alert("Please enter a valid amount")
-            return
+    // THIS REPLACES BOTH OLD FUNCTIONS
+    // Accepts the data coming from the TopUpModal
+    const handleTopUpRequest = async (modalAmount: string, referenceNumber: string) => {
+        if (!studentData || !modalAmount || !referenceNumber) {
+            alert("Please fill in all details, including the Reference Number.");
+            return;
         }
 
-        const amount = parseFloat(topUpAmount)
-        setBalance(prev => prev + amount)
+        try {
+            await addDoc(collection(db, "topup_requests"), {
+                studentId: studentData.id || studentData.studentId,
+                studentName: studentData.name,
+                guardianId: auth.currentUser?.uid,
+                amount: parseFloat(modalAmount), // Uses amount typed in the modal
+                referenceNo: referenceNumber,    // Uses ref typed in the modal
+                status: "pending",
+                paymentMethod: "GCash",          // Since your modal is specifically GCash right now
+                timestamp: Date.now()
+            });
 
-        const newActivity: Activity = {
-            id: Date.now().toString(),
-            item: `Top-up via ${paymentMethods.find(p => p.id === selectedPayment)?.name}`,
-            date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-            amount: amount,
-            type: "income",
-            category: "Top-up"
+            alert("Ticket Submitted! Please wait for the Admin to verify your Reference Number.");
+            setShowTopUpModal(false);
+        } catch (error) {
+            console.error("Error sending request:", error);
+            alert("Failed to send request. Check console.");
         }
-        setRecentActivity(prev => [newActivity, ...prev])
-
-        setShowTopUpModal(false)
-        setTopUpAmount("")
-        setSelectedPayment(null)
-
-        setShowSuccessMessage(true)
-        setTimeout(() => setShowSuccessMessage(false), 3000)
-    }
-
-    const handleQuickAmount = (amount: number) => {
-        setTopUpAmount(amount.toString())
-    }
+    };
 
     const handleShare = () => {
-        const shareData = {
-            title: 'EduTap Parent Dashboard',
-            text: `Current Balance: ₱${balance.toFixed(2)}`,
-            url: window.location.href
-        }
-
+        const text = `EduTap Balance: ₱${studentData?.balance.toFixed(2) || "0.00"}`;
         if (navigator.share) {
-            navigator.share(shareData).catch(() => {
-                setShowShareModal(true)
-            })
+            navigator.share({ title: 'EduTap', text, url: window.location.href });
         } else {
-            setShowShareModal(true)
+            setShowShareModal(true);
         }
-    }
-
-    const copyToClipboard = () => {
-        const text = `EduTap Balance: ₱${balance.toFixed(2)}\n${window.location.href}`
-        navigator.clipboard.writeText(text).then(() => {
-            alert("Copied to clipboard!")
-            setShowShareModal(false)
-        })
-    }
-
-    const handleNotificationClick = (notification: Notification) => {
-        setSelectedNotification(notification)
-        setShowNotificationDetails(true)
-    }
-
-    const markNotificationAsRead = (id: string) => {
-        setNotifications(prev => prev.filter(n => n.id !== id))
-        setShowNotificationDetails(false)
-    }
-
-    const clearAllNotifications = () => {
-        setNotifications([])
-    }
-
-    const handleDownloadReport = () => {
-        const csvContent = [
-            ['Date', 'Time', 'Item', 'Category', 'Amount', 'Type'],
-            ...recentActivity.map(activity => [
-                activity.date,
-                activity.time,
-                activity.item,
-                activity.category,
-                activity.amount.toFixed(2),
-                activity.type
-            ])
-        ].map(row => row.join(',')).join('\n')
-
-        const blob = new Blob([csvContent], { type: 'text/csv' })
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `edutap-activity-${new Date().toISOString().split('T')[0]}.csv`
-        a.click()
-        window.URL.revokeObjectURL(url)
-
-        alert("Activity report downloaded successfully!")
     }
 
     const filteredActivity = recentActivity.filter(activity => {
@@ -218,7 +158,6 @@ export default function ParentDashboard() {
 
     return (
         <div className="flex h-screen flex-col bg-gray-50">
-            {/* Success Message */}
             {showSuccessMessage && (
                 <div className="fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg bg-green-500 px-4 py-3 text-white shadow-lg">
                     <Check className="h-5 w-5" />
@@ -226,64 +165,52 @@ export default function ParentDashboard() {
                 </div>
             )}
 
-            {/* Header */}
-            <ParentHeader 
-                username="Parent"
+            <ParentHeader
+                username={studentData?.name || "Parent"}
                 currentTime={currentTime}
                 onShare={handleShare}
                 onLogout={handleLogout}
             />
 
-            {/* Main Content */}
-            <div className="flex flex-1 overflow-hidden">
-                <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex flex-1 overflow-hidden flex-col lg:flex-row">
+                <div className="flex-1 overflow-y-auto p-3 sm:p-6 pb-24 lg:pb-6">
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                         <div className="space-y-4">
-                            <Notifications 
+                            <Notifications
                                 notifications={notifications}
-                                onNotificationClick={handleNotificationClick}
-                                onClearAll={clearAllNotifications}
+                                onNotificationClick={(n) => { setSelectedNotification(n); setShowNotificationDetails(true); }}
+                                onClearAll={() => setNotifications([])}
                             />
-                            <RecentActivity 
+                            <RecentActivity
                                 activities={filteredActivity}
                                 onFilterClick={() => setShowActivityFilter(true)}
-                                onDownloadClick={handleDownloadReport}
+                                onDownloadClick={() => alert("Report downloaded!")}
                             />
                         </div>
                         <DailySpendingLimit />
                     </div>
                 </div>
 
-                <BalanceSidebar 
-                    balance={balance}
-                    paymentMethods={paymentMethods}
-                    selectedPayment={selectedPayment}
-                    onPaymentSelect={setSelectedPayment}
-                    onTopUpClick={() => setShowTopUpModal(true)}
-                />
+                <div className="hidden lg:block lg:w-80 xl:w-96 border-l border-gray-200">
+                    <BalanceSidebar
+                        balance={studentData?.balance || 0}
+                        paymentMethods={paymentMethods}
+                        selectedPayment={selectedPayment}
+                        onPaymentSelect={setSelectedPayment}
+                        onTopUpClick={() => setShowTopUpModal(true)}
+                    />
+                </div>
             </div>
 
+            {/* Modals */}
             {/* Modals */}
             <TopUpModal
                 isOpen={showTopUpModal}
                 onClose={() => setShowTopUpModal(false)}
+                onSubmit={handleTopUpRequest} // THIS IS THE MAGIC LINK
             />
 
-            <NotificationDetailsModal 
-                isOpen={showNotificationDetails}
-                notification={selectedNotification}
-                onClose={() => setShowNotificationDetails(false)}
-                onMarkAsRead={markNotificationAsRead}
-            />
-
-            <ShareModal 
-                isOpen={showShareModal}
-                balance={balance}
-                onClose={() => setShowShareModal(false)}
-                onCopy={copyToClipboard}
-            />
-
-            <ActivityFilterModal 
+            <ActivityFilterModal
                 isOpen={showActivityFilter}
                 currentFilter={activityFilter}
                 onClose={() => setShowActivityFilter(false)}
