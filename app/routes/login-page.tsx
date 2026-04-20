@@ -3,8 +3,8 @@
 import { LoginForm } from "@/components/ui/login-form"
 
 // Add a loader function (required by React Router)
-export async function loader() {
-    return null // No data needed for login page
+export async function clientLoader() {
+  return null
 }
 
 export default function LoginPage() {
