@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { KeyboardEvent } from "react"
-import { TrendingDown, TrendingUp, Edit2, Check, X } from "lucide-react"
+import { TrendingDown, TrendingUp, Edit2, Check, X, AlertTriangle } from "lucide-react"
 
 interface Transaction {
   amount: number
@@ -19,6 +19,7 @@ interface DailySpendingLimitProps {
 export function DailySpendingLimit({ todaySpent, dailyLimit, transactions, onLimitChange }: DailySpendingLimitProps) {
   const [isEditingLimit, setIsEditingLimit] = useState(false)
   const [tempLimit, setTempLimit] = useState("")
+  const [errorMsg, setErrorMsg] = useState("")
 
   const remaining = dailyLimit - todaySpent
   const percentageUsed = dailyLimit > 0 ? (todaySpent / dailyLimit) * 100 : 0
@@ -29,7 +30,6 @@ export function DailySpendingLimit({ todaySpent, dailyLimit, transactions, onLim
   // --- Stats calculations ---
   const now = new Date()
 
-  // Avg / Day — total spent divided by number of distinct days with transactions
   const dayTotals = transactions.reduce<Record<string, number>>((acc, t) => {
     const day = new Date(t.date).toDateString()
     acc[day] = (acc[day] || 0) + t.amount
@@ -40,7 +40,6 @@ export function DailySpendingLimit({ todaySpent, dailyLimit, transactions, onLim
     ? Object.values(dayTotals).reduce((a, b) => a + b, 0) / uniqueDays
     : 0
 
-  // This Week — Monday to today
   const startOfWeek = new Date(now)
   startOfWeek.setDate(now.getDate() - ((now.getDay() + 6) % 7))
   startOfWeek.setHours(0, 0, 0, 0)
@@ -48,7 +47,6 @@ export function DailySpendingLimit({ todaySpent, dailyLimit, transactions, onLim
     .filter(t => new Date(t.date) >= startOfWeek)
     .reduce((sum, t) => sum + t.amount, 0)
 
-  // This Month — 1st of current month to today
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
   const thisMonthTotal = transactions
     .filter(t => new Date(t.date) >= startOfMonth)
@@ -57,15 +55,21 @@ export function DailySpendingLimit({ todaySpent, dailyLimit, transactions, onLim
 
   const handleSaveLimit = () => {
     const newLimit = parseFloat(tempLimit)
-    if (!isNaN(newLimit) && newLimit > 0) {
-      onLimitChange(newLimit)
-      setIsEditingLimit(false)
+    if (isNaN(newLimit) || newLimit <= 0) {
+      setErrorMsg("Please enter a valid amount.")
+      return
     }
+    // FIX: clear error, update limit, reset temp state
+    setErrorMsg("")
+    onLimitChange(newLimit)
+    setTempLimit("")       // ← was missing: stale value on re-open
+    setIsEditingLimit(false)
   }
 
   const handleCancel = () => {
     setIsEditingLimit(false)
     setTempLimit("")
+    setErrorMsg("")
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -89,7 +93,16 @@ export function DailySpendingLimit({ todaySpent, dailyLimit, transactions, onLim
 
       {/* Header */}
       <div className="flex items-center justify-between shrink-0">
-        <h2 className="text-base font-bold text-gray-900">Daily Spending Limit</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-bold text-gray-900">Daily Spending Limit</h2>
+          {/* FIX: surface over-limit warning so parent UI can react */}
+          {isOverLimit && (
+            <span className="flex items-center gap-1 text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-md">
+              <AlertTriangle className="h-2.5 w-2.5" />
+              Over limit
+            </span>
+          )}
+        </div>
         {!isEditingLimit && (
           <button
             onClick={() => { setTempLimit(dailyLimit.toString()); setIsEditingLimit(true) }}
@@ -124,7 +137,7 @@ export function DailySpendingLimit({ todaySpent, dailyLimit, transactions, onLim
       {/* Budget + Remaining */}
       <div className="grid grid-cols-2 gap-2 shrink-0">
 
-        {/* Budget cell — expands into inline edit mode */}
+        {/* Budget cell */}
         <div className={`rounded-lg border px-3 py-2.5 transition-all duration-200 ${isEditingLimit
           ? "border-gray-300 bg-white shadow-sm ring-1 ring-gray-200"
           : "border-gray-100 bg-gray-50"
@@ -133,13 +146,12 @@ export function DailySpendingLimit({ todaySpent, dailyLimit, transactions, onLim
 
           {isEditingLimit ? (
             <div className="flex flex-col gap-2">
-              {/* Input row */}
               <div className="flex items-center gap-1.5">
                 <span className="text-sm font-semibold text-gray-400">₱</span>
                 <input
                   type="number"
                   value={tempLimit}
-                  onChange={(e) => setTempLimit(e.target.value)}
+                  onChange={(e) => { setTempLimit(e.target.value); setErrorMsg("") }}
                   onKeyDown={handleKeyDown}
                   autoFocus
                   className="
@@ -152,7 +164,10 @@ export function DailySpendingLimit({ todaySpent, dailyLimit, transactions, onLim
                   placeholder="0"
                 />
               </div>
-              {/* Save / Cancel buttons */}
+              {/* FIX: show validation error inline */}
+              {errorMsg && (
+                <p className="text-[9px] text-red-500 font-medium -mt-1">{errorMsg}</p>
+              )}
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={handleSaveLimit}

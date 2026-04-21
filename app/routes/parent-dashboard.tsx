@@ -109,7 +109,7 @@ export default function ParentDashboard() {
         const txnUnsubscribe = onSnapshot(
             query(
                 collection(db, "transactions"),
-                where("studentId", "==", studentData.id),
+                where("studentNumber", "==", studentData.studentNumber),
                 orderBy("timestamp", "desc")
             ),
             (snapshot) => {
@@ -207,7 +207,7 @@ export default function ParentDashboard() {
         const spendingUnsubscribe = onSnapshot(
             query(
                 collection(db, "transactions"),
-                where("studentId", "==", studentData.id),
+                where("studentNumber", "==", studentData.studentNumber),
                 where("timestamp", ">=", startTimestamp),
                 orderBy("timestamp", "asc")
             ),
@@ -231,6 +231,36 @@ export default function ParentDashboard() {
         observer.observe(el)
         return () => observer.disconnect()
     }, [])
+
+    useEffect(() => {
+    if (!auth.currentUser?.uid) return
+
+    const notifUnsubscribe = onSnapshot(
+        query(
+            collection(db, "notifications"),
+            where("guardianId", "==", auth.currentUser.uid),
+            where("read", "==", false),
+            orderBy("timestamp", "desc")
+        ),
+        (snapshot) => {
+            const limitNotifs = snapshot.docs.map(doc => ({
+                id: doc.id,
+                type: "warning" as const,
+                title: "⚠️ Purchase Blocked",
+                description: doc.data().message,
+                icon: "warning" as const,
+                timestamp: new Date(doc.data().timestamp).toLocaleTimeString('en-PH', {
+                    hour: '2-digit', minute: '2-digit'
+                })
+            }))
+            setNotifications(prev => {
+                const others = prev.filter(n => n.title !== "⚠️ Purchase Blocked")
+                return [...limitNotifs, ...others].slice(0, 5)
+            })
+        }
+    )
+    return () => notifUnsubscribe()
+}, [studentData?.id])
 
     // Handlers
     const handleLimitChange = async (newLimit: number) => {
