@@ -4,7 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import { ShoppingCart, AlertCircle, CheckCircle, ArrowLeft } from "lucide-react"
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth"
-import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore"
+import { doc, getDoc } from "firebase/firestore"
 import { auth, db } from "@/configs/firebase"
 interface LoginFormProps {
     onLogin: (username: string) => void
@@ -96,23 +96,15 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     setIsResetting(true)
 
     try {
-        // 1. Check if email exists in Firestore 'users' collection
-        const usersRef = collection(db, "users")
-        const q = query(usersRef, where("email", "==", resetEmail))
-        const snapshot = await getDocs(q)
-
-        if (snapshot.empty) {
-            setResetError("No account found with that email address.")
-            setIsResetting(false)
-            return
-        }
-
-        // 2. Email exists in DB, send the reset email
         await sendPasswordResetEmail(auth, resetEmail)
         setResetSuccess(true)
     } catch (err: any) {
         console.error(err)
-        setResetError("Failed to send reset email. Please try again.")
+        if (err.code === "auth/user-not-found" || err.code === "auth/invalid-email") {
+            setResetError("No account found with that email address.")
+        } else {
+            setResetError("Failed to send reset email. Please try again.")
+        }
     } finally {
         setIsResetting(false)
     }
