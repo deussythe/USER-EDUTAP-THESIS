@@ -1,10 +1,13 @@
 "use client"
 
-import { TrendingUp, ShoppingBag, AlertTriangle, Star } from "lucide-react"
+import { TrendingUp, ShoppingBag, AlertTriangle, Star, Ban } from "lucide-react"
+import { useEffect, useState } from "react"
+import { collection, query, where, getDocs } from "firebase/firestore"
+import { db, auth } from "@/configs/firebase"
 
 interface Transaction {
     amount: number
-    date: string // ISO string
+    date: string
     item?: string
 }
 
@@ -14,15 +17,34 @@ interface SpendingStatsProps {
 }
 
 export function SpendingStats({ transactions, dailyLimit }: SpendingStatsProps) {
-    const now = new Date()
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const [timesLimitHit, setTimesLimitHit] = useState(0)
 
-    // Total spent this month
-    const monthlyTotal = transactions
-        .filter(t => new Date(t.date) >= startOfMonth)
-        .reduce((sum, t) => sum + t.amount, 0)
+    // Fetch limit_exceeded notifications count
+    useEffect(() => {
+        const fetchLimitHits = async () => {
+            const user = auth.currentUser
+            if (!user) return
+
+            const snap = await getDocs(
+                query(
+                    collection(db, "notifications"),
+                    where("guardianId", "==", user.uid),
+                    where("type", "==", "limit_exceeded")
+                )
+            )
+            setTimesLimitHit(snap.size)
+        }
+        fetchLimitHits()
+    }, [])
+
+    // Highest single purchase
+    const highestPurchase = transactions.length > 0
+        ? Math.max(...transactions.map(t => t.amount))
+        : 0
 
     // Days over limit this month
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
     const dayTotals = transactions
         .filter(t => new Date(t.date) >= startOfMonth)
         .reduce<Record<string, number>>((acc, t) => {
@@ -31,11 +53,6 @@ export function SpendingStats({ transactions, dailyLimit }: SpendingStatsProps) 
             return acc
         }, {})
     const daysOverLimit = Object.values(dayTotals).filter(total => total > dailyLimit).length
-
-    // Highest single purchase
-    const highestPurchase = transactions.length > 0
-        ? Math.max(...transactions.map(t => t.amount))
-        : 0
 
     // Most purchased item
     const itemCounts = transactions.reduce<Record<string, number>>((acc, t) => {
@@ -46,11 +63,11 @@ export function SpendingStats({ transactions, dailyLimit }: SpendingStatsProps) 
 
     const stats = [
         {
-            label: "Total This Month",
-            value: `₱${monthlyTotal.toLocaleString("en-PH", { maximumFractionDigits: 0 })}`,
-            icon: TrendingUp,
-            color: "#8B0000",
-            bg: "#fff1f1",
+            label: "Times Limit Hit",
+            value: timesLimitHit === 0 ? "None 🎉" : `${timesLimitHit}x blocked`,
+            icon: Ban,
+            color: timesLimitHit > 0 ? "#dc2626" : "#16a34a",
+            bg: timesLimitHit > 0 ? "#fef2f2" : "#f0fdf4",
         },
         {
             label: "Days Over Limit",

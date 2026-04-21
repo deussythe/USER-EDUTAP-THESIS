@@ -222,15 +222,15 @@ export default function ParentDashboard() {
 
     // Effect 5: Floating top-up visibility
     useEffect(() => {
-        const el = topUpCardRef.current
-        if (!el) return
-        const observer = new IntersectionObserver(
-            ([entry]) => setShowFloatingTopUp(!entry.isIntersecting),
-            { threshold: 0 }
-        )
-        observer.observe(el)
-        return () => observer.disconnect()
-    }, [])
+    const el = topUpCardRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+        ([entry]) => setShowFloatingTopUp(!entry.isIntersecting),
+        { threshold: 0.1 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+}, [topUpCardRef.current])
 
     useEffect(() => {
     if (!auth.currentUser?.uid) return
@@ -328,14 +328,16 @@ export default function ParentDashboard() {
             )}
 
             {/* Pass onSettingsClick to header */}
-            <ParentHeader
-                username={studentData?.name || "Parent"}
-                currentTime={currentTime}
-                onShare={handleShare}
-                onLogout={handleLogout}
-                onSettingsClick={() => setShowSettingsModal(true)}
-            />
-
+                <ParentHeader
+                    username={studentData?.name || "Parent"}
+                    currentTime={currentTime}
+                    photoUrl={studentData?.photoUrl || ""}
+                    gradeLevel={studentData?.gradeLevel || ""}   // ← add
+                    balance={studentData?.balance || 0}           // ← add
+                    onShare={handleShare}
+                    onLogout={handleLogout}
+                    onSettingsClick={() => setShowSettingsModal(true)}
+                />
             <div className="flex flex-1 overflow-hidden flex-col lg:flex-row">
                 <div className="flex-1 overflow-y-auto p-3 sm:p-6 pb-24 lg:pb-6">
 
