@@ -29,7 +29,7 @@ export function BalanceSidebar({
         }
     }
 
-    const isGCashSelected = selectedPayment === "gcash"
+    const isEWalletSelected = selectedPayment === "ewallet"
 
     return (
         <div className="flex h-full w-full flex-col bg-white p-5">
@@ -57,20 +57,19 @@ export function BalanceSidebar({
                 <div>
                     <h3 className="text-sm font-semibold text-gray-700 mb-2">Quick Top-Up</h3>
                     <button
-                        onClick={() => handlePaymentClick("gcash")}
-                        aria-pressed={isGCashSelected}
-                        aria-label="Select GCash as payment method"
+                        onClick={() => handlePaymentClick("ewallet")}
+                        aria-pressed={isEWalletSelected}
+                        aria-label="Select E-Wallet / E-Bank as payment method"
                         className={`w-full rounded-xl overflow-hidden transition-all duration-200 ${
-                            isGCashSelected
-                                ? "ring-4 ring-[#007DFF] ring-offset-2 shadow-lg shadow-blue-200"
-                                : "ring-2 ring-transparent hover:ring-[#007DFF]/40 shadow-sm hover:shadow-md"
+                            isEWalletSelected
+                                ? "ring-4 ring-[#7f1d1d] ring-offset-2 shadow-lg shadow-red-200"
+                                : "ring-2 ring-transparent hover:ring-[#7f1d1d]/40 shadow-sm hover:shadow-md"
                         }`}
                     >
-                        <img
-                            src="https://res.cloudinary.com/dvjilvllm/image/upload/v1776796108/y7qb5gboldlh72xqhiwq.png"
-                            alt="GCash"
-                            className="w-full h-16 object-cover"
-                        />
+                        <div className="w-full h-16 bg-[#7f1d1d] flex items-center justify-center gap-2 rounded-xl">
+                            <Wallet className="h-6 w-6 text-white" />
+                            <span className="text-white text-lg font-bold tracking-wide">E-Wallets & E-Banks</span>
+                        </div>
                     </button>
                 </div>
 

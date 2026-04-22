@@ -65,7 +65,7 @@ export function TopUpModal({ isOpen, onClose, onSubmit, studentName }: TopUpModa
                     onClick={(e) => e.stopPropagation()}>
 
                     <div className="mb-4 flex items-center justify-between">
-                        <h2 className="text-xl font-bold text-gray-900">Top Up via GCash</h2>
+                        <h2 className="text-xl font-bold text-gray-900">Top Up via E-Wallet / E-Bank</h2>
                         <button onClick={onClose} className="rounded-full p-1 transition hover:bg-gray-100">
                             <X className="h-5 w-5 text-gray-500" />
                         </button>
@@ -73,14 +73,14 @@ export function TopUpModal({ isOpen, onClose, onSubmit, studentName }: TopUpModa
 
                     <div className="mb-4 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-3 transition-all duration-300">
                         <p className="mb-2 text-sm font-semibold text-gray-700">Scan to Pay</p>
-                        <img src={getQRCodePath()} alt="GCash QR Code" onClick={() => setIsZoomed(true)}
+                        <img src={getQRCodePath()} alt="E-Wallet QR Code" onClick={() => setIsZoomed(true)}
                             className="mb-2 h-64 w-64 cursor-pointer rounded-lg object-contain shadow-sm transition-transform duration-300 hover:scale-105" />
                         <p className="text-xs font-medium text-gray-500">EDUTAP Admin • 09 ** *** ****</p>
                         {amount && (
                             <p className="mt-1 text-xs font-bold text-blue-600">
                                 {['50', '100', '200', '500'].includes(amount)
                                     ? "Exact amount embedded in QR!"
-                                    : "Please input the exact amount in GCash"}
+                                    : "Please input the exact amount in your e-wallet app"}
                             </p>
                         )}
                     </div>
@@ -127,9 +127,9 @@ export function TopUpModal({ isOpen, onClose, onSubmit, studentName }: TopUpModa
                             className="absolute -right-4 -top-12 rounded-full p-2 text-white transition hover:bg-white/20">
                             <X className="h-8 w-8" />
                         </button>
-                        <img src={getQRCodePath()} alt="Zoomed GCash QR Code"
+                        <img src={getQRCodePath()} alt="Zoomed E-Wallet QR Code"
                             className="max-h-[75vh] max-w-[90vw] rounded-xl object-contain shadow-2xl" />
-                        <p className="mt-4 text-sm font-medium text-white">Scan with GCash App</p>
+                        <p className="mt-4 text-sm font-medium text-white">Scan with your E-Wallet / E-Bank App</p>
                     </div>
                 </div>
             )}

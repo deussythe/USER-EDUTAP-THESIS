@@ -171,7 +171,7 @@ export function DailySpendingLimit({ todaySpent, dailyLimit, transactions, onLim
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={handleSaveLimit}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-900 text-white text-[10px] font-semibold hover:bg-gray-700 transition-colors"
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-950 text-white text-[10px] font-semibold hover:bg-gray-700 transition-colors"
                 >
                   <Check className="h-2.5 w-2.5" />
                   Save

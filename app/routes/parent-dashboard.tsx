@@ -138,7 +138,8 @@ export default function ParentDashboard() {
                     return [...topupNotifs, ...newNotifications].slice(0, 5)
                 })
 
-                const newActivity = txns.slice(0, 10).map(txn => {
+                // Only canteen purchases go into Recent Activity
+                const newActivity: Activity[] = txns.map(txn => {
                     const ts = txn.timestamp?.toDate?.() ?? new Date(txn.timestamp)
                     return {
                         id: txn.id,
@@ -152,6 +153,7 @@ export default function ParentDashboard() {
                         category: "Food & Drinks"
                     }
                 })
+
                 setRecentActivity(newActivity)
             },
             (error) => {
@@ -233,6 +235,7 @@ export default function ParentDashboard() {
         return () => observer.disconnect()
     }, [topUpCardRef.current])
 
+    // Effect 6: Purchase blocked notifications only
     useEffect(() => {
         if (!auth.currentUser?.uid) return
 
