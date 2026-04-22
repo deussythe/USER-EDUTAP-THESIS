@@ -11,8 +11,8 @@ export function ShareModal({ isOpen, balance, onClose, onCopy }: ShareModalProps
     if (!isOpen) return null
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 p-3 backdrop-blur-sm sm:p-4">
+            <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl sm:p-6">
                 <div className="mb-4 flex items-center justify-between">
                     <h3 className="text-xl font-bold text-gray-900">Share Dashboard</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600">

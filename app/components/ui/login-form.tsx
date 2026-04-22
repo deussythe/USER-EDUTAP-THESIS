@@ -1,11 +1,19 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
-import { ShoppingCart, AlertCircle, CheckCircle, ArrowLeft } from "lucide-react"
+import { useState, useEffect } from "react"
+import { ShoppingCart, AlertCircle, CheckCircle, ArrowLeft, Eye, EyeOff } from "lucide-react"
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth"
 import { doc, getDoc } from "firebase/firestore"
 import { auth, db } from "@/configs/firebase"
+import {
+    applyFavicon,
+    type BrandingSettings,
+    fetchBrandingSettingsForTab,
+    readBrandingCache,
+    subscribeToBrandingSettings,
+} from "@/configs/branding"
+
 interface LoginFormProps {
     onLogin: (username: string) => void
 }
@@ -15,17 +23,77 @@ type View = "login" | "forgot-password"
 export function LoginForm({ onLogin }: LoginFormProps) {
     const [view, setView] = useState<View>("login")
 
-    // Login state
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
+    const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState("")
     const [isLoading, setIsLoading] = useState(false)
 
-    // Forgot password state
     const [resetEmail, setResetEmail] = useState("")
     const [resetError, setResetError] = useState("")
     const [resetSuccess, setResetSuccess] = useState(false)
     const [isResetting, setIsResetting] = useState(false)
+    const [schoolName, setSchoolName] = useState("St. Clare College of Caloocan")
+    const [canteenName, setCanteenName] = useState("EDUTAP")
+    const [logoUrl, setLogoUrl] = useState<string | null>(null)
+
+    // Background state
+    const [bgStyle, setBgStyle] = useState<React.CSSProperties>({
+        background: "linear-gradient(to bottom right, #450a0a, #7f1d1d, #7f1d1d)",
+    })
+
+    useEffect(() => {
+        // Apply cached branding immediately (no flash)
+        const cached = readBrandingCache("student")
+        if (cached) {
+            applyBranding(cached)
+        }
+
+        // Then fetch fresh from Firestore
+        fetchBrandingSettingsForTab("student")
+            .then((settings) => {
+                applyBranding(settings)
+            })
+            .catch((brandingError) => {
+                console.error("Failed to load branding settings:", brandingError)
+            })
+
+        const unsubscribe = subscribeToBrandingSettings(
+            "student",
+            (settings) => {
+                applyBranding(settings)
+            },
+            (subscriptionError) => {
+                console.error("Failed to subscribe to branding settings:", subscriptionError)
+            },
+        )
+
+        return unsubscribe
+    }, [])
+
+    function applyBranding(settings: BrandingSettings) {
+        setSchoolName(settings.schoolName)
+        setCanteenName(settings.canteenName)
+        setLogoUrl(settings.logoUrl)
+        applyFavicon(settings.faviconUrl)
+        applyBg(settings.loginBgType, settings.loginBgColor, settings.loginBgUrl)
+    }
+
+    function applyBg(
+        type: "color" | "image",
+        color: string,
+        url: string | null,
+    ) {
+        if (type === "image" && url) {
+            setBgStyle({
+                backgroundImage: `url(${url})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+            })
+        } else {
+            setBgStyle({ backgroundColor: color })
+        }
+    }
 
     const handleSubmit = async (e: React.FormEvent | React.KeyboardEvent) => {
         e.preventDefault()
@@ -58,15 +126,10 @@ export function LoginForm({ onLogin }: LoginFormProps) {
             onLogin(role)
 
             setTimeout(() => {
-                if (role === "admin") {
-                    window.location.href = "/admin-panel"
-                } else if (role === "staff") {
-                    window.location.href = "/pos"
-                } else if (role === "parent") {
-                    window.location.href = "/parent-dashboard"
-                } else {
-                    setError("Unknown role. Please contact admin.")
-                }
+                if (role === "admin") window.location.href = "/admin-panel"
+                else if (role === "staff") window.location.href = "/pos"
+                else if (role === "parent") window.location.href = "/parent-dashboard"
+                else setError("Unknown role. Please contact admin.")
             }, 500)
         } catch (err: any) {
             console.error(err)
@@ -84,31 +147,31 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     }
 
     const handleForgotPassword = async (e: React.FormEvent | React.KeyboardEvent) => {
-    e.preventDefault()
-    setResetError("")
-    setResetSuccess(false)
+        e.preventDefault()
+        setResetError("")
+        setResetSuccess(false)
 
-    if (!resetEmail) {
-        setResetError("Please enter your email address.")
-        return
-    }
-
-    setIsResetting(true)
-
-    try {
-        await sendPasswordResetEmail(auth, resetEmail)
-        setResetSuccess(true)
-    } catch (err: any) {
-        console.error(err)
-        if (err.code === "auth/user-not-found" || err.code === "auth/invalid-email") {
-            setResetError("No account found with that email address.")
-        } else {
-            setResetError("Failed to send reset email. Please try again.")
+        if (!resetEmail) {
+            setResetError("Please enter your email address.")
+            return
         }
-    } finally {
-        setIsResetting(false)
+
+        setIsResetting(true)
+
+        try {
+            await sendPasswordResetEmail(auth, resetEmail)
+            setResetSuccess(true)
+        } catch (err: any) {
+            console.error(err)
+            if (err.code === "auth/user-not-found" || err.code === "auth/invalid-email") {
+                setResetError("No account found with that email address.")
+            } else {
+                setResetError("Failed to send reset email. Please try again.")
+            }
+        } finally {
+            setIsResetting(false)
+        }
     }
-}
 
     const goBackToLogin = () => {
         setView("login")
@@ -118,15 +181,20 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-red-950 via-red-900 to-red-900 p-4">
+        // 👇 Replace the hardcoded gradient with dynamic bgStyle
+        <div className="flex min-h-screen items-center justify-center p-4" style={bgStyle}>
             <div className="w-full max-w-md rounded-xl border border-red-700 bg-white shadow-2xl">
                 {/* Header */}
                 <div className="space-y-3 p-6 text-center bg-gradient-to-r from-red-900 to-red-800 rounded-t-xl">
-                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-lg">
-                        <ShoppingCart className="h-8 w-8 text-red-900" />
+                    <div className="mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white shadow-lg">
+                        {logoUrl ? (
+                            <img src={logoUrl} alt={`${canteenName} logo`} className="h-full w-full scale-110 rounded-full object-cover" />
+                        ) : (
+                            <ShoppingCart className="h-8 w-8 text-red-900" />
+                        )}
                     </div>
-                    <h2 className="text-2xl font-bold text-white">EDUTAP</h2>
-                    <p className="text-sm text-red-100">St. Clare College of Caloocan</p>
+                    <h2 className="text-2xl font-bold text-white">{canteenName}</h2>
+                    <p className="text-sm text-red-100">{schoolName}</p>
                 </div>
 
                 {/* Login View */}
@@ -135,9 +203,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                         <p className="text-center text-sm text-gray-600 mb-6">Sign in to access your dashboard</p>
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <label htmlFor="email" className="text-sm font-medium text-gray-700">
-                                    Email
-                                </label>
+                                <label htmlFor="email" className="text-sm font-medium text-gray-700">Email</label>
                                 <input
                                     id="email"
                                     type="email"
@@ -152,23 +218,30 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label htmlFor="password" className="text-sm font-medium text-gray-700">
-                                    Password
-                                </label>
-                                <input
-                                    id="password"
-                                    type="password"
-                                    placeholder="Enter your password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    onKeyDown={(e) => e.key === "Enter" && handleSubmit(e)}
-                                    autoComplete="current-password"
-                                    disabled={isLoading}
-                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                />
+                                <label htmlFor="password" className="text-sm font-medium text-gray-700">Password</label>
+                                <div className="relative">
+                                    <input
+                                        id="password"
+                                        type={showPassword ? "text" : "password"}
+                                        placeholder="Enter your password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        onKeyDown={(e) => e.key === "Enter" && handleSubmit(e)}
+                                        autoComplete="current-password"
+                                        disabled={isLoading}
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                        tabIndex={-1}
+                                    >
+                                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </button>
+                                </div>
                             </div>
 
-                            {/* Forgot Password Link */}
                             <div className="flex justify-end">
                                 <button
                                     type="button"
@@ -217,9 +290,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
 
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <label htmlFor="reset-email" className="text-sm font-medium text-gray-700">
-                                    Email
-                                </label>
+                                <label htmlFor="reset-email" className="text-sm font-medium text-gray-700">Email</label>
                                 <input
                                     id="reset-email"
                                     type="email"

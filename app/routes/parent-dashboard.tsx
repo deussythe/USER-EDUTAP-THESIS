@@ -1,455 +1,656 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useRef } from "react"
-import { Check } from "lucide-react"
-import { ParentHeader } from "~/components/parent/parent-header"
-import { Notifications } from "@/components/parent/notifications"
-import { RecentActivity } from "@/components/parent/recent-activity"
-import { BalanceSidebar } from "@/components/parent/balance-sidebar"
-import { TopUpModal } from "@/components/parent/modals/topup-modal"
-import { NotificationDetailsModal } from "@/components/parent/modals/notification-details-modal"
-import { ActivityFilterModal } from "@/components/parent/modals/activity-filter-modal"
-import { SettingsModal } from "@/components/parent/modals/settings-modal"
-import { DailySpendingLimit } from "@/components/parent/daily-spending-limit"
-import { SpendingStats } from "@/components/parent/spending-stats"
-import { SpendingTrend } from "@/components/parent/spending-trend"
-import { collection, query, where, onSnapshot, addDoc, orderBy, updateDoc, doc } from "firebase/firestore"
-import { db, auth } from "../configs/firebase"
-import { onAuthStateChanged } from "firebase/auth"
+import { useEffect, useRef, useState } from "react";
+import { AlertCircle, Check } from "lucide-react";
+import { onAuthStateChanged } from "firebase/auth";
+import {
+	addDoc,
+	collection,
+	doc,
+	onSnapshot,
+	orderBy,
+	query,
+	updateDoc,
+	where,
+} from "firebase/firestore";
+import { ParentHeader } from "~/components/parent/parent-header";
+import { Notifications } from "@/components/parent/notifications";
+import { RecentActivity } from "@/components/parent/recent-activity";
+import { BalanceSidebar } from "@/components/parent/balance-sidebar";
+import { TopUpModal } from "@/components/parent/modals/topup-modal";
+import { NotificationDetailsModal } from "@/components/parent/modals/notification-details-modal";
+import { PushNotificationToast } from "@/components/parent/push-notification-toast";
+import { ActivityFilterModal } from "@/components/parent/modals/activity-filter-modal";
+import { SettingsModal } from "@/components/parent/modals/settings-modal";
+import { DailySpendingLimit } from "@/components/parent/daily-spending-limit";
+import { SpendingStats } from "@/components/parent/spending-stats";
+import { SpendingTrend } from "@/components/parent/spending-trend";
+import { auth, db } from "../configs/firebase";
 
 interface Notification {
-    id: string
-    type: "purchase" | "warning"
-    title: string
-    description: string
-    amount?: number
-    icon: "purchase" | "warning"
-    timestamp: string
+	id: string;
+	type: "purchase" | "warning";
+	title: string;
+	description: string;
+	amount?: number;
+	icon: "purchase" | "warning";
+	timestamp: string;
+}
+
+interface ActivityItem {
+	name: string;
+	qty: number;
+	price: number;
 }
 
 interface Activity {
-    id: string
-    item: string
-    items: { name: string; qty: number; price: number }[]
-    date: string
-    rawDate: string
-    time: string
-    amount: number
-    type: "expense" | "income"
-    category: string
+	id: string;
+	item: string;
+	items: ActivityItem[];
+	date: string;
+	rawDate: string;
+	time: string;
+	amount: number;
+	type: "expense" | "income";
+	category: string;
 }
 
+interface StudentData {
+	id: string;
+	name?: string;
+	guardianName?: string;
+	guardianId?: string;
+	gradeLevel?: string;
+	lrn?: string;
+	photoUrl?: string;
+	balance?: number;
+	dailyLimit?: number;
+	schoolEmail?: string;
+	contactNumber?: string;
+	guardianEmail?: string;
+	studentId?: string;
+	[key: string]: unknown;
+}
+
+const formatTime = (value: unknown) => {
+	const date =
+		typeof value === "object" && value !== null && "toDate" in value
+			? (value as { toDate: () => Date }).toDate()
+			: new Date(value as string | number);
+
+	return date.toLocaleTimeString("en-PH", {
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+};
+
 export default function ParentDashboard() {
-    const [currentTime, setCurrentTime] = useState("")
-    const [studentData, setStudentData] = useState<any>(null)
-    const [selectedPayment, setSelectedPayment] = useState<string | null>(null)
-    const [showTopUpModal, setShowTopUpModal] = useState(false)
-    const [showSettingsModal, setShowSettingsModal] = useState(false)
-    const [showSuccessMessage, setShowSuccessMessage] = useState(false)
-    const [showNotificationDetails, setShowNotificationDetails] = useState(false)
-    const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null)
-    const [showActivityFilter, setShowActivityFilter] = useState(false)
-    const [activityFilter, setActivityFilter] = useState<"all" | "expense" | "income">("all")
-    const [notifications, setNotifications] = useState<Notification[]>([])
-    const [recentActivity, setRecentActivity] = useState<Activity[]>([])
-    const [todaySpent, setTodaySpent] = useState(0)
-    const [dailyLimit, setDailyLimit] = useState(100)
-    const [showFloatingTopUp, setShowFloatingTopUp] = useState(false)
-    const topUpCardRef = useRef<HTMLDivElement>(null)
-    const [activityDate, setActivityDate] = useState<string | null>(null)
+	const [currentTime, setCurrentTime] = useState("");
+	const [guardianId, setGuardianId] = useState<string | null>(auth.currentUser?.uid ?? null);
+	const [studentData, setStudentData] = useState<StudentData | null>(null);
+	const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
+	const [showTopUpModal, setShowTopUpModal] = useState(false);
+	const [showSettingsModal, setShowSettingsModal] = useState(false);
+	const [topUpFeedback, setTopUpFeedback] = useState<{
+		type: "success" | "error";
+		message: string;
+	} | null>(null);
+	const [showNotificationDetails, setShowNotificationDetails] = useState(false);
+	const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+	const [toastNotification, setToastNotification] = useState<Notification | null>(null);
+	const [showActivityFilter, setShowActivityFilter] = useState(false);
+	const [activityFilter, setActivityFilter] = useState<"all" | "expense" | "income">("all");
+	const [notifications, setNotifications] = useState<Notification[]>([]);
+	const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
+	const [todaySpent, setTodaySpent] = useState(0);
+	const [dailyLimit, setDailyLimit] = useState(100);
+	const [showFloatingTopUp, setShowFloatingTopUp] = useState(false);
+	const [activityDate, setActivityDate] = useState<string | null>(null);
+	const topUpCardRef = useRef<HTMLDivElement>(null);
+	const seenNotificationIdsRef = useRef<Set<string>>(new Set());
+	const hasHydratedNotificationsRef = useRef(false);
 
-    const paymentMethods = [
-        { id: "cash", name: "Cash", icon: "💵" },
-        { id: "gcash", name: "GCash", icon: "🔵" },
-        { id: "paymaya", name: "PayMaya", icon: "🟢" },
-        { id: "gotyme", name: "GoTyme", icon: "🏹" }
-    ]
+	const paymentMethods = [
+		{ id: "cash", name: "Cash", icon: "cash" },
+		{ id: "gcash", name: "GCash", icon: "gcash" },
+		{ id: "paymaya", name: "PayMaya", icon: "paymaya" },
+		{ id: "gotyme", name: "GoTyme", icon: "gotyme" },
+	];
 
-    // Effect 1: Clock
-    useEffect(() => {
-        const updateTime = () => {
-            const now = new Date()
-            const hours = now.getHours()
-            const minutes = now.getMinutes()
-            const ampm = hours >= 12 ? "PM" : "AM"
-            const displayHours = hours % 12 || 12
-            const displayMinutes = minutes.toString().padStart(2, "0")
-            setCurrentTime(`${displayHours}:${displayMinutes} ${ampm}`)
-        }
-        updateTime()
-        const interval = setInterval(updateTime, 60000)
-        return () => clearInterval(interval)
-    }, [])
+	useEffect(() => {
+		const updateTime = () => {
+			const now = new Date();
+			const hours = now.getHours();
+			const minutes = now.getMinutes().toString().padStart(2, "0");
+			const ampm = hours >= 12 ? "PM" : "AM";
+			setCurrentTime(`${hours % 12 || 12}:${minutes} ${ampm}`);
+		};
 
-    // Effect 2: Load student data
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-            if (!user) return
+		updateTime();
+		const interval = setInterval(updateTime, 60000);
+		return () => clearInterval(interval);
+	}, []);
 
-            const q = query(
-                collection(db, "students"),
-                where("guardianId", "==", user.uid)
-            )
+	useEffect(() => {
+		let studentUnsubscribe: (() => void) | undefined;
 
-            const studentUnsubscribe = onSnapshot(q, (snapshot) => {
-                if (!snapshot.empty) {
-                    const docSnap = snapshot.docs[0]
-                    setStudentData({ id: docSnap.id, ...docSnap.data() })
-                }
-            })
+		const authUnsubscribe = onAuthStateChanged(auth, (user) => {
+			studentUnsubscribe?.();
+			setGuardianId(user?.uid ?? null);
 
-            return () => studentUnsubscribe()
-        })
-        return () => unsubscribe()
-    }, [])
+			if (!user) {
+				setStudentData(null);
+				return;
+			}
 
-    // Effect 3: Real-time notifications and activity from transactions
-    useEffect(() => {
-        if (!studentData?.id) return
+			const studentQuery = query(
+				collection(db, "students"),
+				where("guardianId", "==", user.uid),
+			);
 
-        const txnUnsubscribe = onSnapshot(
-            query(
-                collection(db, "transactions"),
-                where("lrn", "==", studentData.lrn),
-                orderBy("timestamp", "desc")
-            ),
-            (snapshot) => {
-                console.log("📦 Transactions found:", snapshot.docs.length)
+			studentUnsubscribe = onSnapshot(studentQuery, (snapshot) => {
+				if (snapshot.empty) {
+					setStudentData(null);
+					return;
+				}
 
-                const txns = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                })) as any[]
+				const docSnap = snapshot.docs[0];
+				setStudentData({ id: docSnap.id, ...(docSnap.data() as Omit<StudentData, "id">) });
+			});
+		});
 
-                const newNotifications = txns.slice(0, 5).map(txn => ({
-                    id: txn.id,
-                    type: "purchase" as const,
-                    title: "Purchase Alert",
-                    description: `Bought: ${txn.items?.map((i: any) => i.name).join(", ") || "Item"}`,
-                    amount: -txn.total,
-                    icon: "purchase" as const,
-                    timestamp: new Date(txn.timestamp).toLocaleTimeString('en-PH', {
-                        hour: '2-digit', minute: '2-digit'
-                    })
-                }))
+		return () => {
+			studentUnsubscribe?.();
+			authUnsubscribe();
+		};
+	}, []);
 
-                setNotifications(prev => {
-                    const topupNotifs = prev.filter(n => n.title.includes("Top-Up"))
-                    return [...topupNotifs, ...newNotifications].slice(0, 5)
-                })
+	useEffect(() => {
+		if (!guardianId || !studentData?.lrn) return;
 
-                // Only canteen purchases go into Recent Activity
-                const newActivity: Activity[] = txns.map(txn => {
-                    const ts = txn.timestamp?.toDate?.() ?? new Date(txn.timestamp)
-                    return {
-                        id: txn.id,
-                        item: txn.items?.map((i: any) => i.name).join(", ") || "Purchase",
-                        items: txn.items || [],
-                        date: ts.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }),
-                        rawDate: ts.toISOString(),
-                        time: ts.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }),
-                        amount: -txn.total,
-                        type: "expense" as const,
-                        category: "Food & Drinks"
-                    }
-                })
+		const txnUnsubscribe = onSnapshot(
+			query(
+				collection(db, "transactions"),
+				where("lrn", "==", studentData.lrn),
+				orderBy("timestamp", "desc"),
+			),
+			(snapshot) => {
+				const txns = snapshot.docs.map((txnDoc) => ({
+					id: txnDoc.id,
+					...txnDoc.data(),
+				})) as Array<Record<string, any>>;
 
-                setRecentActivity(newActivity)
-            },
-            (error) => {
-                console.error("❌ Firestore error:", error)
-            }
-        )
+				const purchaseNotifications: Notification[] = txns.slice(0, 5).map((txn) => ({
+					id: txn.id,
+					type: "purchase",
+					title: "Purchase Alert",
+					description: `Bought: ${txn.items?.map((item: ActivityItem) => item.name).join(", ") || "Item"}`,
+					amount: -Number(txn.total || 0),
+					icon: "purchase",
+					timestamp: formatTime(txn.timestamp),
+				}));
 
-        const topupUnsubscribe = onSnapshot(
-            query(
-                collection(db, "topup_requests"),
-                where("guardianId", "==", auth.currentUser?.uid),
-                orderBy("timestamp", "desc")
-            ),
-            (snapshot) => {
-                const topupNotifs = snapshot.docs
-                    .filter(doc => doc.data().status !== "pending")
-                    .map(doc => ({
-                        id: doc.id,
-                        type: "warning" as const,
-                        title: doc.data().status === "approved" ? "Top-Up Approved ✅" : "Top-Up Rejected ❌",
-                        description: doc.data().status === "approved"
-                            ? `₱${doc.data().amount} has been added to the wallet`
-                            : `Your top-up of ₱${doc.data().amount} was rejected`,
-                        amount: doc.data().status === "approved" ? doc.data().amount : undefined,
-                        icon: "warning" as const,
-                        timestamp: new Date(doc.data().timestamp).toLocaleTimeString('en-PH', {
-                            hour: '2-digit', minute: '2-digit'
-                        })
-                    }))
+				setNotifications((prev) => {
+					const nonPurchase = prev.filter(
+						(notification) => notification.title !== "Purchase Alert",
+					);
+					return [...nonPurchase, ...purchaseNotifications].slice(0, 5);
+				});
 
-                setNotifications(prev => {
-                    const txnNotifs = prev.filter(n => n.title === "Purchase Alert")
-                    return [...topupNotifs, ...txnNotifs].slice(0, 5)
-                })
-            }
-        )
+				const activity: Activity[] = txns.map((txn) => {
+					const timestamp =
+						typeof txn.timestamp?.toDate === "function"
+							? txn.timestamp.toDate()
+							: new Date(txn.timestamp);
 
-        return () => {
-            txnUnsubscribe()
-            topupUnsubscribe()
-        }
-    }, [studentData?.id])
+					return {
+						id: txn.id,
+						item:
+							txn.items?.map((item: ActivityItem) => item.name).join(", ") ||
+							"Purchase",
+						items: txn.items || [],
+						date: timestamp.toLocaleDateString("en-PH", {
+							month: "short",
+							day: "numeric",
+						}),
+						rawDate: timestamp.toISOString(),
+						time: timestamp.toLocaleTimeString("en-PH", {
+							hour: "2-digit",
+							minute: "2-digit",
+						}),
+						amount: -Number(txn.total || 0),
+						type: "expense",
+						category: "Food & Drinks",
+					};
+				});
 
-    // Effect 4: Today's spending
-    useEffect(() => {
-        if (!studentData?.id) return
+				setRecentActivity(activity);
+			},
+			(error) => {
+				console.error("Firestore transaction listener error:", error);
+			},
+		);
 
-        if (studentData.dailyLimit) setDailyLimit(studentData.dailyLimit)
+		const topupUnsubscribe = onSnapshot(
+			query(
+				collection(db, "topup_requests"),
+				where("guardianId", "==", guardianId),
+				orderBy("timestamp", "desc"),
+			),
+			(snapshot) => {
+				const topupNotifications: Notification[] = snapshot.docs
+					.filter((requestDoc) => requestDoc.data().status !== "pending")
+					.map((requestDoc) => {
+						const data = requestDoc.data();
+						const approved = data.status === "approved";
 
-        const startOfToday = new Date()
-        startOfToday.setHours(0, 0, 0, 0)
-        const startTimestamp = startOfToday.getTime()
+						return {
+							id: requestDoc.id,
+							type: "warning",
+							title: approved ? "Top-Up Approved" : "Top-Up Rejected",
+							description: approved
+								? `PHP ${data.amount} has been added to the wallet`
+								: `Your top-up of PHP ${data.amount} was rejected`,
+							amount: approved ? Number(data.amount) : undefined,
+							icon: "warning",
+							timestamp: formatTime(data.timestamp),
+						};
+					});
 
-        const spendingUnsubscribe = onSnapshot(
-            query(
-                collection(db, "transactions"),
-                where("lrn", "==", studentData.lrn),
-                where("timestamp", ">=", startTimestamp),
-                orderBy("timestamp", "asc")
-            ),
-            (snapshot) => {
-                const total = snapshot.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0)
-                setTodaySpent(total)
-            }
-        )
+				setNotifications((prev) => {
+					const otherNotifications = prev.filter(
+						(notification) =>
+							notification.title !== "Top-Up Approved" &&
+							notification.title !== "Top-Up Rejected",
+					);
+					return [...topupNotifications, ...otherNotifications].slice(0, 5);
+				});
+			},
+		);
 
-        return () => spendingUnsubscribe()
-    }, [studentData?.id, studentData?.dailyLimit])
+		return () => {
+			txnUnsubscribe();
+			topupUnsubscribe();
+		};
+	}, [guardianId, studentData?.lrn]);
 
-    // Effect 5: Floating top-up visibility
-    useEffect(() => {
-        const el = topUpCardRef.current
-        if (!el) return
-        const observer = new IntersectionObserver(
-            ([entry]) => setShowFloatingTopUp(!entry.isIntersecting),
-            { threshold: 0.1 }
-        )
-        observer.observe(el)
-        return () => observer.disconnect()
-    }, [topUpCardRef.current])
+	useEffect(() => {
+		if (!studentData?.lrn) return;
 
-    // Effect 6: Purchase blocked notifications only
-    useEffect(() => {
-        if (!auth.currentUser?.uid) return
+		if (typeof studentData.dailyLimit === "number") {
+			setDailyLimit(studentData.dailyLimit);
+		}
 
-        const notifUnsubscribe = onSnapshot(
-            query(
-                collection(db, "notifications"),
-                where("guardianId", "==", auth.currentUser.uid),
-                where("read", "==", false),
-                orderBy("timestamp", "desc")
-            ),
-            (snapshot) => {
-                const limitNotifs = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    type: "warning" as const,
-                    title: "⚠️ Purchase Blocked",
-                    description: doc.data().message,
-                    icon: "warning" as const,
-                    timestamp: new Date(doc.data().timestamp).toLocaleTimeString('en-PH', {
-                        hour: '2-digit', minute: '2-digit'
-                    })
-                }))
-                setNotifications(prev => {
-                    const others = prev.filter(n => n.title !== "⚠️ Purchase Blocked")
-                    return [...limitNotifs, ...others].slice(0, 5)
-                })
-            }
-        )
-        return () => notifUnsubscribe()
-    }, [studentData?.id])
+		const startOfToday = new Date();
+		startOfToday.setHours(0, 0, 0, 0);
 
-    // Handlers
-    const handleLimitChange = async (newLimit: number) => {
-        setDailyLimit(newLimit)
-        if (studentData?.id) {
-            await updateDoc(doc(db, "students", studentData.id), { dailyLimit: newLimit })
-        }
-    }
+		const spendingUnsubscribe = onSnapshot(
+			query(
+				collection(db, "transactions"),
+				where("lrn", "==", studentData.lrn),
+				where("timestamp", ">=", startOfToday.getTime()),
+				orderBy("timestamp", "asc"),
+			),
+			(snapshot) => {
+				const total = snapshot.docs.reduce(
+					(sum, txnDoc) => sum + Number(txnDoc.data().total || 0),
+					0,
+				);
+				setTodaySpent(total);
+			},
+		);
 
-    const handleLogout = () => {
-        localStorage.removeItem('username')
-        localStorage.removeItem('role')
-        window.location.href = '/'
-    }
+		return () => spendingUnsubscribe();
+	}, [studentData?.dailyLimit, studentData?.lrn]);
 
-    const handleTopUpRequest = async (modalAmount: string, referenceNumber: string) => {
-        if (!studentData || !modalAmount || !referenceNumber) {
-            alert("Please fill in all details, including the Reference Number.")
-            return
-        }
-        try {
-            await addDoc(collection(db, "topup_requests"), {
-                studentId: studentData.id || studentData.studentId,
-                studentName: studentData.name,
-                guardianId: auth.currentUser?.uid,
-                amount: parseFloat(modalAmount),
-                referenceNo: referenceNumber,
-                status: "pending",
-                paymentMethod: "GCash",
-                timestamp: Date.now()
-            })
-            alert("Ticket Submitted! Please wait for the Admin to verify your Reference Number.")
-            setShowTopUpModal(false)
-        } catch (error) {
-            console.error("Error sending request:", error)
-            alert("Failed to send request. Check console.")
-        }
-    }
+	useEffect(() => {
+		const element = topUpCardRef.current;
+		if (!element) return;
 
-    const handleShare = () => {
-        const text = `EduTap Balance: ₱${studentData?.balance.toFixed(2) || "0.00"}`
-        if (navigator.share) {
-            navigator.share({ title: 'EduTap', text, url: window.location.href })
-        }
-    }
+		const observer = new IntersectionObserver(
+			([entry]) => setShowFloatingTopUp(!entry.isIntersecting),
+			{ threshold: 0.1 },
+		);
 
-    const filteredActivity = recentActivity.filter(activity => {
-        const matchesType = activityFilter === "all" || activity.type === activityFilter
-        const matchesDate = !activityDate || activity.rawDate.startsWith(activityDate)
-        return matchesType && matchesDate
-    })
+		observer.observe(element);
+		return () => observer.disconnect();
+	}, []);
 
-    const transactions = recentActivity.map(a => ({
-        amount: Math.abs(a.amount),
-        date: a.rawDate,
-        item: a.item,
-    }))
+	useEffect(() => {
+		if (!guardianId) return;
 
-    return (
-        <div className="flex h-screen flex-col bg-gray-50">
-            {showSuccessMessage && (
-                <div className="fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg bg-green-500 px-4 py-3 text-white shadow-lg">
-                    <Check className="h-5 w-5" />
-                    <span>Top-up successful!</span>
-                </div>
-            )}
+		const notificationUnsubscribe = onSnapshot(
+			query(
+				collection(db, "notifications"),
+				where("guardianId", "==", guardianId),
+				where("read", "==", false),
+				orderBy("timestamp", "desc"),
+			),
+			(snapshot) => {
+				const blockedNotifications: Notification[] = snapshot.docs.map(
+					(notificationDoc) => ({
+						id: notificationDoc.id,
+						type: "warning",
+						title: "Purchase Blocked",
+						description: notificationDoc.data().message,
+						icon: "warning",
+						timestamp: formatTime(notificationDoc.data().timestamp),
+					}),
+				);
 
-            <ParentHeader
-                username={studentData?.name || "Parent"}
-                currentTime={currentTime}
-                photoUrl={studentData?.photoUrl || ""}
-                gradeLevel={studentData?.gradeLevel || ""}
-                balance={studentData?.balance || 0}
-                lrn={studentData?.lrn || ""}
-                onShare={handleShare}
-                onLogout={handleLogout}
-                onSettingsClick={() => setShowSettingsModal(true)}
-            />
+				setNotifications((prev) => {
+					const others = prev.filter(
+						(notification) => notification.title !== "Purchase Blocked",
+					);
+					return [...blockedNotifications, ...others].slice(0, 5);
+				});
+			},
+		);
 
-            <div className="flex flex-1 overflow-hidden flex-col lg:flex-row">
-                <div className="flex-1 overflow-y-auto p-3 sm:p-6 pb-24 lg:pb-6">
+		return () => notificationUnsubscribe();
+	}, [guardianId]);
 
-                    {/* Mobile-only Balance Card */}
-                    <div ref={topUpCardRef} className="lg:hidden mb-4 rounded-xl bg-[#8B0000] p-4 text-white">
-                        <p className="text-xs opacity-75 mb-1">{studentData?.name || "Student"}'s Wallet</p>
-                        <p className="text-3xl font-bold">₱{(studentData?.balance || 0).toFixed(2)}</p>
-                        <p className="text-xs opacity-75 mt-1">Last updated just now</p>
-                        <button
-                            onClick={() => setShowTopUpModal(true)}
-                            className="mt-3 w-full rounded-lg bg-white py-2 text-sm font-semibold text-[#8B0000] hover:bg-gray-100"
-                        >
-                            Top Up Wallet
-                        </button>
-                    </div>
+	useEffect(() => {
+		if (notifications.length === 0) return;
 
-                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                        {/* Left column */}
-                        <div className="space-y-4">
-                            <Notifications
-                                notifications={notifications}
-                                onNotificationClick={(n) => { setSelectedNotification(n); setShowNotificationDetails(true) }}
-                                onClearAll={() => setNotifications([])}
-                            />
-                            <RecentActivity
-                                activities={filteredActivity}
-                                onDownloadClick={() => {}}
-                                selectedDate={activityDate}
-                                onDateChange={setActivityDate}
-                            />
-                        </div>
+		const seenIds = seenNotificationIdsRef.current;
+		const incomingNotifications = notifications.filter(
+			(notification) => !seenIds.has(notification.id),
+		);
 
-                        {/* Right column */}
-                        <div className="space-y-4">
-                            <DailySpendingLimit
-                                todaySpent={todaySpent}
-                                dailyLimit={dailyLimit}
-                                transactions={transactions}
-                                onLimitChange={handleLimitChange}
-                            />
-                            <SpendingStats
-                                transactions={transactions}
-                                dailyLimit={dailyLimit}
-                            />
-                            <SpendingTrend
-                                transactions={transactions}
-                                dailyLimit={dailyLimit}
-                            />
-                        </div>
-                    </div>
+		notifications.forEach((notification) => {
+			seenIds.add(notification.id);
+		});
 
-                </div>
+		if (!hasHydratedNotificationsRef.current) {
+			hasHydratedNotificationsRef.current = true;
+			return;
+		}
 
-                <div className="hidden lg:block lg:w-80 xl:w-96 border-l border-gray-200">
-                    <BalanceSidebar
-                        balance={studentData?.balance || 0}
-                        paymentMethods={paymentMethods}
-                        selectedPayment={selectedPayment}
-                        onPaymentSelect={setSelectedPayment}
-                        onTopUpClick={() => setShowTopUpModal(true)}
-                    />
-                </div>
-            </div>
+		if (incomingNotifications.length > 0) {
+			setToastNotification(incomingNotifications[0]);
+		}
+	}, [notifications]);
 
-            {/* Floating Top Up */}
-            {showFloatingTopUp && (
-                <button
-                    onClick={() => setShowTopUpModal(true)}
-                    className="lg:hidden fixed bottom-6 right-5 z-50 flex items-center gap-2 bg-[#8B0000] text-white text-sm font-semibold px-5 py-3 rounded-full shadow-xl active:scale-95 transition-transform"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                    Top Up
-                </button>
-            )}
+	useEffect(() => {
+		if (!toastNotification) return;
 
-            <TopUpModal
-                isOpen={showTopUpModal}
-                onClose={() => setShowTopUpModal(false)}
-                onSubmit={handleTopUpRequest}
-            />
+		const timeout = window.setTimeout(() => {
+			setToastNotification(null);
+		}, 4500);
 
-            {showSettingsModal && (
-                <SettingsModal
-                    currentName={studentData?.name || ""}
-                    currentEmail={auth.currentUser?.email || ""}
-                    currentGradeLevel={studentData?.gradeLevel}
-                    currentLrn={studentData?.lrn}
-                    currentSchoolEmail={studentData?.schoolEmail}
-                    currentGuardianName={studentData?.guardianName}
-                    currentContactNumber={studentData?.contactNumber}
-                    currentGuardianEmail={studentData?.guardianEmail}
-                    isOpen={showSettingsModal}
-                    onClose={() => setShowSettingsModal(false)}
-                    studentId={studentData?.id || ""}
-                />
-            )}
+		return () => window.clearTimeout(timeout);
+	}, [toastNotification]);
 
-            <ActivityFilterModal
-                isOpen={showActivityFilter}
-                currentFilter={activityFilter}
-                onClose={() => setShowActivityFilter(false)}
-                onSelectFilter={setActivityFilter}
-            />
-        </div>
-    )
+	useEffect(() => {
+		if (!topUpFeedback) return;
+
+		const timeout = window.setTimeout(() => {
+			setTopUpFeedback(null);
+		}, 4000);
+
+		return () => window.clearTimeout(timeout);
+	}, [topUpFeedback]);
+
+	const handleLimitChange = async (newLimit: number) => {
+		setDailyLimit(newLimit);
+		if (studentData?.id) {
+			await updateDoc(doc(db, "students", studentData.id), { dailyLimit: newLimit });
+		}
+	};
+
+	const handleLogout = () => {
+		localStorage.removeItem("username");
+		localStorage.removeItem("role");
+		window.location.href = "/";
+	};
+
+	const handleTopUpRequest = async (modalAmount: string, referenceNumber: string) => {
+		if (!studentData || !modalAmount || !referenceNumber) {
+			setTopUpFeedback({
+				type: "error",
+				message: "Please fill in all details, including the reference number.",
+			});
+			throw new Error("Missing top-up request details.");
+		}
+
+		try {
+			await addDoc(collection(db, "topup_requests"), {
+				studentId: studentData.id || studentData.studentId,
+				studentName: studentData.name,
+				guardianId,
+				amount: parseFloat(modalAmount),
+				referenceNo: referenceNumber,
+				status: "pending",
+				paymentMethod: "GCash",
+				timestamp: Date.now(),
+			});
+
+			setTopUpFeedback({
+				type: "success",
+				message:
+					"Ticket submitted. Please wait for the admin to verify your reference number.",
+			});
+			setShowTopUpModal(false);
+		} catch (error) {
+			console.error("Error sending request:", error);
+			setTopUpFeedback({
+				type: "error",
+				message: "Failed to send request. Please try again.",
+			});
+			throw error;
+		}
+	};
+
+	const handleShare = () => {
+		const text = `EduTap Balance: PHP ${studentData?.balance?.toFixed(2) || "0.00"}`;
+		if (navigator.share) {
+			navigator.share({ title: "EduTap", text, url: window.location.href });
+		}
+	};
+
+	const handleMarkNotificationAsRead = async (id: string) => {
+		setNotifications((prev) => prev.filter((notification) => notification.id !== id));
+		setSelectedNotification(null);
+		setShowNotificationDetails(false);
+
+		try {
+			await updateDoc(doc(db, "notifications", id), { read: true });
+		} catch (error) {
+			console.error("Unable to mark notification as read:", error);
+		}
+	};
+
+	const filteredActivity = recentActivity.filter((activity) => {
+		const matchesType = activityFilter === "all" || activity.type === activityFilter;
+		const matchesDate = !activityDate || activity.rawDate.startsWith(activityDate);
+		return matchesType && matchesDate;
+	});
+
+	const transactions = recentActivity.map((activity) => ({
+		amount: Math.abs(activity.amount),
+		date: activity.rawDate,
+		item: activity.item,
+	}));
+
+	return (
+		<div className="flex min-h-dvh flex-col bg-gray-50">
+			{topUpFeedback && (
+				<div
+					className={`fixed left-4 right-4 top-4 z-[80] flex items-start gap-3 rounded-2xl border px-4 py-3 shadow-2xl sm:left-auto sm:max-w-sm ${
+						topUpFeedback.type === "success"
+							? "border-emerald-200 bg-emerald-50 text-emerald-900"
+							: "border-red-200 bg-red-50 text-red-900"
+					}`}>
+					<div
+						className={`mt-0.5 rounded-full p-1 ${
+							topUpFeedback.type === "success" ? "bg-emerald-100" : "bg-red-100"
+						}`}>
+						{topUpFeedback.type === "success" ? (
+							<Check className="h-4 w-4" />
+						) : (
+							<AlertCircle className="h-4 w-4" />
+						)}
+					</div>
+					<div className="min-w-0 flex-1">
+						<p className="text-sm font-semibold">
+							{topUpFeedback.type === "success"
+								? "Top-Up Request Sent"
+								: "Top-Up Error"}
+						</p>
+						<p className="text-xs leading-relaxed opacity-80">
+							{topUpFeedback.message}
+						</p>
+					</div>
+				</div>
+			)}
+
+			<div className="pointer-events-none fixed left-4 right-4 top-20 z-[70] w-auto sm:left-auto sm:w-[calc(100%-2rem)] sm:max-w-sm sm:top-24">
+				<PushNotificationToast
+					notification={toastNotification}
+					onClose={() => setToastNotification(null)}
+					onOpen={() => {
+						if (!toastNotification) return;
+						setSelectedNotification(toastNotification);
+						setShowNotificationDetails(true);
+						setToastNotification(null);
+					}}
+				/>
+			</div>
+
+			<ParentHeader
+				username={studentData?.name || "Parent"}
+				currentTime={currentTime}
+				photoUrl={studentData?.photoUrl || ""}
+				gradeLevel={studentData?.gradeLevel || ""}
+				balance={studentData?.balance || 0}
+				lrn={studentData?.lrn || ""}
+				onShare={handleShare}
+				onLogout={handleLogout}
+				onSettingsClick={() => setShowSettingsModal(true)}
+			/>
+
+			<div className="flex flex-1 flex-col lg:flex-row">
+				<div className="flex-1 overflow-y-auto p-3 pb-24 sm:p-4 sm:pb-24 lg:p-6 lg:pb-6">
+					<div
+						ref={topUpCardRef}
+						className="mb-4 rounded-xl bg-[#8B0000] p-4 text-white lg:hidden">
+						<p className="mb-1 text-xs opacity-75">
+							{studentData?.name || "Student"}&apos;s Wallet
+						</p>
+						<p className="text-3xl font-bold">
+							PHP {(studentData?.balance || 0).toFixed(2)}
+						</p>
+						<p className="mt-1 text-xs opacity-75">Last updated just now</p>
+						<button
+							onClick={() => setShowTopUpModal(true)}
+							className="mt-3 w-full rounded-lg bg-white py-2 text-sm font-semibold text-[#8B0000] hover:bg-gray-100">
+							Top Up Wallet
+						</button>
+					</div>
+
+					<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+						<div className="space-y-4">
+							<Notifications
+								notifications={notifications}
+								onNotificationClick={(notification) => {
+									setSelectedNotification(notification);
+									setShowNotificationDetails(true);
+								}}
+								onClearAll={() => setNotifications([])}
+							/>
+							<RecentActivity
+								activities={filteredActivity}
+								onDownloadClick={() => {}}
+								selectedDate={activityDate}
+								onDateChange={setActivityDate}
+							/>
+						</div>
+
+						<div className="space-y-4">
+							<DailySpendingLimit
+								todaySpent={todaySpent}
+								dailyLimit={dailyLimit}
+								transactions={transactions}
+								onLimitChange={handleLimitChange}
+							/>
+							<SpendingStats transactions={transactions} dailyLimit={dailyLimit} />
+							<SpendingTrend transactions={transactions} dailyLimit={dailyLimit} />
+						</div>
+					</div>
+				</div>
+
+				<div className="hidden border-l border-gray-200 lg:block lg:w-80 xl:w-96">
+					<BalanceSidebar
+						walletName={studentData?.name || "Parent"}
+						balance={studentData?.balance || 0}
+						paymentMethods={paymentMethods}
+						selectedPayment={selectedPayment}
+						onPaymentSelect={setSelectedPayment}
+						onTopUpClick={() => setShowTopUpModal(true)}
+					/>
+				</div>
+			</div>
+
+			{showFloatingTopUp && (
+				<button
+					onClick={() => setShowTopUpModal(true)}
+					className="fixed bottom-6 right-5 z-50 flex items-center gap-2 rounded-full bg-[#8B0000] px-5 py-3 text-sm font-semibold text-white shadow-xl transition-transform active:scale-95 lg:hidden">
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						className="h-4 w-4"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="2.5"
+						strokeLinecap="round"
+						strokeLinejoin="round">
+						<line x1="12" y1="5" x2="12" y2="19" />
+						<line x1="5" y1="12" x2="19" y2="12" />
+					</svg>
+					Top Up
+				</button>
+			)}
+
+			<TopUpModal
+				isOpen={showTopUpModal}
+				onClose={() => setShowTopUpModal(false)}
+				onSubmit={handleTopUpRequest}
+				studentName={studentData?.guardianName || studentData?.name || "A guardian"}
+			/>
+
+			<NotificationDetailsModal
+				isOpen={showNotificationDetails}
+				notification={selectedNotification}
+				onClose={() => {
+					setShowNotificationDetails(false);
+					setSelectedNotification(null);
+				}}
+				onMarkAsRead={handleMarkNotificationAsRead}
+			/>
+
+			{showSettingsModal && (
+				<SettingsModal
+					currentName={studentData?.name || ""}
+					currentEmail={auth.currentUser?.email || ""}
+					currentGradeLevel={studentData?.gradeLevel}
+					currentLrn={studentData?.lrn}
+					currentSchoolEmail={String(studentData?.schoolEmail || "")}
+					currentGuardianName={String(studentData?.guardianName || "")}
+					currentContactNumber={String(studentData?.contactNumber || "")}
+					currentGuardianEmail={String(studentData?.guardianEmail || "")}
+					isOpen={showSettingsModal}
+					onClose={() => setShowSettingsModal(false)}
+					studentId={studentData?.id || ""}
+				/>
+			)}
+
+			<ActivityFilterModal
+				isOpen={showActivityFilter}
+				currentFilter={activityFilter}
+				onClose={() => setShowActivityFilter(false)}
+				onSelectFilter={setActivityFilter}
+			/>
+		</div>
+	);
 }
