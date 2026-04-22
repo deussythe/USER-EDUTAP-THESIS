@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { ShoppingBag, TrendingUp, Download, ChevronDown, ChevronUp } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { ShoppingBag, TrendingUp, Download, ChevronDown, ChevronUp, Calendar, ChevronLeft, ChevronRight, X } from "lucide-react"
 
 interface ActivityItem {
     name: string
@@ -12,6 +12,7 @@ interface Activity {
     item: string
     items: ActivityItem[]
     date: string
+    rawDate: string
     time: string
     amount: number
     type: "expense" | "income"
@@ -21,21 +22,252 @@ interface Activity {
 interface RecentActivityProps {
     activities: Activity[]
     onDownloadClick: () => void
+    onDateChange: (date: string | null) => void
+    selectedDate: string | null
 }
 
-export function RecentActivity({ activities, onDownloadClick }: RecentActivityProps) {
+const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+const MONTHS = ["January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"]
+
+function CalendarPicker({
+    selectedDate,
+    onSelect,
+    onClose,
+}: {
+    selectedDate: string | null
+    onSelect: (date: string) => void
+    onClose: () => void
+}) {
+    const today = new Date()
+    const [viewYear, setViewYear] = useState(
+        selectedDate ? parseInt(selectedDate.slice(0, 4)) : today.getFullYear()
+    )
+    const [viewMonth, setViewMonth] = useState(
+        selectedDate ? parseInt(selectedDate.slice(5, 7)) - 1 : today.getMonth()
+    )
+
+    const firstDay = new Date(viewYear, viewMonth, 1).getDay()
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+
+    const prevMonth = () => {
+        if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) }
+        else setViewMonth(m => m - 1)
+    }
+    const nextMonth = () => {
+        const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth()
+        if (isCurrentMonth) return
+        if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) }
+        else setViewMonth(m => m + 1)
+    }
+
+    const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth()
+
+    const cells: (number | null)[] = [
+        ...Array(firstDay).fill(null),
+        ...Array.from({ length: daysInMonth }, (_, i) => i + 1)
+    ]
+
+    const isFuture = (day: number) => {
+        const d = new Date(viewYear, viewMonth, day)
+        d.setHours(0, 0, 0, 0)
+        const t = new Date(); t.setHours(0, 0, 0, 0)
+        return d > t
+    }
+
+    const isSelected = (day: number) => {
+        if (!selectedDate) return false
+        const padded = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+        return padded === selectedDate
+    }
+
+    const isToday = (day: number) =>
+        day === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear()
+
+    const handleSelect = (day: number) => {
+        if (isFuture(day)) return
+        const padded = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+        onSelect(padded)
+        onClose()
+    }
+
+    return (
+        <div className="absolute right-0 top-full mt-2 z-50 w-64 rounded-xl border border-gray-200 bg-white shadow-xl p-3 select-none">
+            {/* Month navigation */}
+            <div className="flex items-center justify-between mb-3">
+                <button
+                    onClick={prevMonth}
+                    className="p-1 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+                >
+                    <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="text-sm font-semibold text-gray-800">
+                    {MONTHS[viewMonth]} {viewYear}
+                </span>
+                <button
+                    onClick={nextMonth}
+                    disabled={isCurrentMonth}
+                    className={`p-1 rounded-lg transition-colors ${isCurrentMonth ? "text-gray-200 cursor-not-allowed" : "hover:bg-gray-100 text-gray-500"}`}
+                >
+                    <ChevronRight className="h-4 w-4" />
+                </button>
+            </div>
+
+            {/* Day headers */}
+            <div className="grid grid-cols-7 mb-1">
+                {DAYS.map(d => (
+                    <div key={d} className="text-center text-[10px] font-semibold text-gray-400 py-1">
+                        {d}
+                    </div>
+                ))}
+            </div>
+
+            {/* Day cells */}
+            <div className="grid grid-cols-7 gap-y-0.5">
+                {cells.map((day, i) => {
+                    if (!day) return <div key={`empty-${i}`} />
+
+                    const future = isFuture(day)
+                    const selected = isSelected(day)
+                    const todayCell = isToday(day)
+
+                    return (
+                        <button
+                            key={day}
+                            onClick={() => handleSelect(day)}
+                            disabled={future}
+                            className={`
+                                h-8 w-8 mx-auto rounded-lg text-xs font-medium transition-all
+                                ${selected
+                                    ? "bg-[#8B0000] text-white font-bold shadow-sm"
+                                    : todayCell
+                                        ? "bg-red-50 text-[#8B0000] font-bold ring-1 ring-[#8B0000]/30"
+                                        : future
+                                            ? "text-gray-200 cursor-not-allowed"
+                                            : "text-gray-700 hover:bg-gray-100"
+                                }
+                            `}
+                        >
+                            {day}
+                        </button>
+                    )
+                })}
+            </div>
+
+            {/* Footer */}
+            <div className="mt-3 pt-2 border-t border-gray-100 flex justify-between items-center">
+                <button
+                    onClick={() => { handleSelect(today.getDate()) }}
+                    className="text-xs text-[#8B0000] font-semibold hover:underline"
+                >
+                    Today
+                </button>
+                <button
+                    onClick={onClose}
+                    className="text-xs text-gray-400 hover:text-gray-600"
+                >
+                    Close
+                </button>
+            </div>
+        </div>
+    )
+}
+
+export function RecentActivity({ activities, onDownloadClick, onDateChange, selectedDate }: RecentActivityProps) {
     const [expandedId, setExpandedId] = useState<string | null>(null)
+    const [showCalendar, setShowCalendar] = useState(false)
+    const calendarRef = useRef<HTMLDivElement>(null)
 
     const toggle = (id: string) => setExpandedId(prev => prev === id ? null : id)
+
+    // Close calendar on outside click
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (calendarRef.current && !calendarRef.current.contains(e.target as Node)) {
+                setShowCalendar(false)
+            }
+        }
+        document.addEventListener("mousedown", handler)
+        return () => document.removeEventListener("mousedown", handler)
+    }, [])
+
+    const handleExport = () => {
+        const rows: string[] = []
+        rows.push(["Date", "Time", "Description", "Items", "Category", "Type", "Amount (₱)"].join(","))
+
+        for (const activity of activities) {
+            const itemsDetail = activity.items?.length
+                ? activity.items.map(i => `${i.qty}x ${i.name} @₱${i.price.toFixed(2)}`).join("; ")
+                : activity.item
+
+            rows.push([
+                activity.date,
+                activity.time,
+                `"${activity.item.replace(/"/g, '""')}"`,
+                `"${itemsDetail.replace(/"/g, '""')}"`,
+                activity.category,
+                activity.type,
+                Math.abs(activity.amount).toFixed(2),
+            ].join(","))
+        }
+
+        const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8;" })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        link.href = url
+        link.download = `edutap-activity-${selectedDate ?? new Date().toISOString().slice(0, 10)}.csv`
+        link.click()
+        URL.revokeObjectURL(url)
+    }
+
+    // Format selected date nicely for the button label
+    const formattedDate = selectedDate
+        ? new Date(selectedDate + "T00:00:00").toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })
+        : null
 
     return (
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm h-80 flex flex-col">
             <div className="mb-5 flex items-center justify-between shrink-0">
                 <h2 className="text-base font-bold text-gray-900">Recent Activity</h2>
                 <div className="flex items-center gap-2">
-                    
+
+                    {/* Custom Date Picker Trigger */}
+                    <div className="relative" ref={calendarRef}>
+                        <button
+                            onClick={() => setShowCalendar(v => !v)}
+                            className={`flex items-center gap-1.5 rounded-lg border px-3 py-1 text-xs font-medium transition-colors
+                                ${selectedDate
+                                    ? "border-[#8B0000] bg-red-50 text-[#8B0000]"
+                                    : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                                }`}
+                        >
+                            <Calendar className="h-3 w-3" />
+                            {formattedDate ?? "Filter by date"}
+                        </button>
+
+                        {/* Clear badge */}
+                        {selectedDate && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onDateChange(null) }}
+                                className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-[#8B0000] text-white flex items-center justify-center hover:bg-red-800 transition-colors"
+                                title="Clear date filter"
+                            >
+                                <X className="h-2.5 w-2.5" />
+                            </button>
+                        )}
+
+                        {showCalendar && (
+                            <CalendarPicker
+                                selectedDate={selectedDate}
+                                onSelect={(date) => { onDateChange(date); setShowCalendar(false) }}
+                                onClose={() => setShowCalendar(false)}
+                            />
+                        )}
+                    </div>
+
+                    {/* Export Button */}
                     <button
-                        onClick={onDownloadClick}
+                        onClick={handleExport}
                         className="flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
                     >
                         <Download className="h-3 w-3" />
@@ -45,9 +277,11 @@ export function RecentActivity({ activities, onDownloadClick }: RecentActivityPr
             </div>
 
             {activities.length === 0 ? (
-                <div className="py-8 text-center text-sm text-gray-400 flex-1">No activity yet</div>
+                <div className="py-8 text-center text-sm text-gray-400 flex-1">
+                    {selectedDate ? `No activity on ${formattedDate}` : "No activity yet"}
+                </div>
             ) : (
-                    <div className="space-y-2 overflow-y-auto pr-1 flex-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                <div className="space-y-2 overflow-y-auto pr-1 flex-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {activities.map((activity) => (
                         <div key={activity.id} className="rounded-lg border border-gray-100 overflow-hidden">
                             <div

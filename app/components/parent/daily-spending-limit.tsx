@@ -106,7 +106,7 @@ export function DailySpendingLimit({ todaySpent, dailyLimit, transactions, onLim
         {!isEditingLimit && (
           <button
             onClick={() => { setTempLimit(dailyLimit.toString()); setIsEditingLimit(true) }}
-            className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            className="p-1.5 rounded-lg border border-gray-300 text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-colors"
           >
             <Edit2 className="h-3.5 w-3.5" />
           </button>

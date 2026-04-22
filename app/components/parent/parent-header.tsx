@@ -7,13 +7,13 @@ interface ParentHeaderProps {
     photoUrl?: string
     gradeLevel?: string
     balance?: number
-    studentNumber?: string
+    lrn?: string
     onShare: () => void
     onLogout: () => void
     onSettingsClick: () => void
 }
 
-export function ParentHeader({ username, currentTime, photoUrl, gradeLevel, balance, studentNumber, onShare, onLogout, onSettingsClick }: ParentHeaderProps) {
+export function ParentHeader({ username, currentTime, photoUrl, gradeLevel, balance, lrn, onShare, onLogout, onSettingsClick }: ParentHeaderProps) {
     const [dropdownOpen, setDropdownOpen] = useState(false)
     const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -120,8 +120,8 @@ export function ParentHeader({ username, currentTime, photoUrl, gradeLevel, bala
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <p className="font-semibold text-gray-900 text-sm truncate">{username}</p>
-                                        {studentNumber && (
-                                            <p className="text-xs text-gray-400 font-mono">{studentNumber}</p>
+                                        {lrn && (
+                                            <p className="text-xs text-gray-400 font-mono">{lrn}</p>
                                         )}
                                         {gradeLevel && (
                                             <p className="text-xs text-gray-500">{gradeLevel}</p>

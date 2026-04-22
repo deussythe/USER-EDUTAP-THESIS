@@ -1,4 +1,4 @@
-import { Bell, ShoppingBag, AlertCircle } from "lucide-react"
+import { Bell, ShoppingBag, AlertCircle, Download } from "lucide-react"
 
 interface Notification {
     id: string
@@ -22,11 +22,14 @@ export function Notifications({ notifications, onNotificationClick, onClearAll }
             <div className="mb-4 flex items-center justify-between shrink-0">
                 <h2 className="text-base font-bold text-gray-900">Notifications</h2>
                 <div className="flex items-center gap-2">
-                    <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                    <span className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700">
                         {notifications.length} New
                     </span>
                     {notifications.length > 0 && (
-                        <button onClick={onClearAll} className="text-xs text-red-600 hover:text-red-700">
+                        <button
+                            onClick={onClearAll}
+                            className="flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1 text-xs font-medium text-red-600 hover:bg-gray-50"
+                        >
                             Clear All
                         </button>
                     )}

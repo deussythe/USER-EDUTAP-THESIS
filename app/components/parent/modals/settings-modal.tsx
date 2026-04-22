@@ -18,7 +18,7 @@ interface SettingsModalProps {
     currentEmail: string
     studentId: string
     currentGradeLevel?: string
-    currentStudentNumber?: string
+    currentLrn?: string
     currentSchoolEmail?: string
     currentGuardianName?: string
     currentContactNumber?: string
@@ -72,13 +72,13 @@ function EditableField({ label, value, onChange, icon, type = "text", placeholde
 
 export function SettingsModal({
     isOpen, onClose, currentName, currentEmail, studentId,
-    currentGradeLevel = "", currentStudentNumber = "", currentSchoolEmail = "",
+    currentGradeLevel = "", currentLrn = "", currentSchoolEmail = "",
     currentGuardianName = "", currentContactNumber = "", currentGuardianEmail = "",
 }: SettingsModalProps) {
     const [tab, setTab] = useState<Tab>("student")
     const [name, setName] = useState(currentName)
     const [gradeLevel, setGradeLevel] = useState(currentGradeLevel)
-    const [studentNumber, setStudentNumber] = useState(currentStudentNumber)
+    const [lrn, setLrn] = useState(currentLrn)
     const [schoolEmail, setSchoolEmail] = useState(currentSchoolEmail)
     const [guardianName, setGuardianName] = useState(currentGuardianName)
     const [contactNumber, setContactNumber] = useState(currentContactNumber)
@@ -96,7 +96,7 @@ export function SettingsModal({
     useEffect(() => {
         if (isOpen) {
             setName(currentName); setGradeLevel(currentGradeLevel)
-            setStudentNumber(currentStudentNumber); setSchoolEmail(currentSchoolEmail)
+            setLrn(currentLrn); setSchoolEmail(currentSchoolEmail)
             setGuardianName(currentGuardianName); setContactNumber(currentContactNumber)
             setGuardianEmail(currentGuardianEmail); setTab("student")
             setSuccessMsg(""); setErrorMsg("")
@@ -115,11 +115,11 @@ export function SettingsModal({
             if (!user) throw new Error("Not logged in")
             await updateProfile(user, { displayName: name })
             if (studentId) {
-                await updateDoc(doc(db, "students", studentId), { name, gradeLevel, studentNumber, schoolEmail })
+                await updateDoc(doc(db, "students", studentId), { name, gradeLevel, lrn, schoolEmail })
             }
             await sendAdminNotification(
                 'Student Info Updated',
-                `Guardian updated student info for ${name} (${studentNumber || 'N/A'}).`,
+                `Guardian updated student info for ${name} (LRN: ${lrn || 'N/A'}).`,
                 'student'
             )
             setSuccessMsg("Student info updated successfully!")
@@ -218,7 +218,7 @@ export function SettingsModal({
                             </div>
                             <EditableField label="Student Name" value={name} onChange={setName} icon={<User className="h-4 w-4" />} placeholder="Full name" />
                             <EditableField label="Grade Level" value={gradeLevel} onChange={setGradeLevel} icon={<GraduationCap className="h-4 w-4" />} placeholder="e.g. Grade 10" />
-                            <EditableField label="Student Number" value={studentNumber} onChange={setStudentNumber} icon={<Hash className="h-4 w-4" />} placeholder="e.g. 2024-00123" />
+                            <EditableField label="LRN" value={lrn} onChange={setLrn} icon={<Hash className="h-4 w-4" />} placeholder="e.g. 123456789012" />
                             <EditableField label="School Email" value={schoolEmail} onChange={setSchoolEmail} icon={<Mail className="h-4 w-4" />} type="email" placeholder="student@school.edu" />
                             <button onClick={handleSaveStudent} disabled={loading}
                                 className="w-full py-2.5 rounded-lg bg-[#8B0000] text-white text-sm font-semibold hover:bg-[#6f0000] disabled:opacity-60 transition-colors">
