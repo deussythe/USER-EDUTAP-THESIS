@@ -7,12 +7,13 @@ interface ParentHeaderProps {
     photoUrl?: string
     gradeLevel?: string
     balance?: number
+    studentNumber?: string
     onShare: () => void
     onLogout: () => void
     onSettingsClick: () => void
 }
 
-export function ParentHeader({ username, currentTime, photoUrl, gradeLevel, balance, onShare, onLogout, onSettingsClick }: ParentHeaderProps) {
+export function ParentHeader({ username, currentTime, photoUrl, gradeLevel, balance, studentNumber, onShare, onLogout, onSettingsClick }: ParentHeaderProps) {
     const [dropdownOpen, setDropdownOpen] = useState(false)
     const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -89,7 +90,7 @@ export function ParentHeader({ username, currentTime, photoUrl, gradeLevel, bala
                             {/* Name */}
                             <div className="hidden md:flex flex-col leading-tight text-left">
                                 <span className="text-xs font-semibold text-white">{username}</span>
-                                <span className="text-xs text-red-200">Parent</span>
+                                <span className="text-xs text-red-200">Student</span>
                             </div>
 
                             <ChevronDown className={`h-3.5 w-3.5 text-white/70 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`} />
@@ -119,6 +120,9 @@ export function ParentHeader({ username, currentTime, photoUrl, gradeLevel, bala
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <p className="font-semibold text-gray-900 text-sm truncate">{username}</p>
+                                        {studentNumber && (
+                                            <p className="text-xs text-gray-400 font-mono">{studentNumber}</p>
+                                        )}
                                         {gradeLevel && (
                                             <p className="text-xs text-gray-500">{gradeLevel}</p>
                                         )}
@@ -127,10 +131,6 @@ export function ParentHeader({ username, currentTime, photoUrl, gradeLevel, bala
                                                 ₱{balance.toFixed(2)}
                                             </p>
                                         )}
-                                        <span className="inline-flex items-center gap-1 mt-1 text-xs text-green-600 font-medium">
-                                            <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" />
-                                            Active
-                                        </span>
                                     </div>
                                 </div>
 
