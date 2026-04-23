@@ -4,6 +4,7 @@ import {
 	applyFavicon,
 	type BrandingSettings,
 	fetchBrandingSettingsForTab,
+	getBrandingIconUrl,
 	readBrandingCache,
 	subscribeToBrandingSettings,
 } from "app/configs/branding";
@@ -35,7 +36,7 @@ export function ParentHeader({
 	const dropdownRef = useRef<HTMLDivElement>(null);
 	const [schoolName, setSchoolName] = useState("St. Clare College of Caloocan");
 	const [canteenName, setCanteenName] = useState("EDUTAP");
-	const [logoUrl, setLogoUrl] = useState<string | null>(null);
+	const [brandingIconUrl, setBrandingIconUrl] = useState<string | null>(null);
 
 	useEffect(() => {
 		const cachedBranding = readBrandingCache("student");
@@ -70,7 +71,7 @@ export function ParentHeader({
 	const applyBranding = (branding: BrandingSettings) => {
 		setSchoolName(branding.schoolName);
 		setCanteenName(branding.canteenName);
-		setLogoUrl(branding.logoUrl);
+		setBrandingIconUrl(getBrandingIconUrl(branding));
 		applyFavicon(branding.faviconUrl);
 	};
 
@@ -89,17 +90,23 @@ export function ParentHeader({
 		<header className="relative z-50 border-b border-red-900 bg-gradient-to-r from-red-950 to-red-900 px-3 py-3 sm:px-4">
 			<div className="flex items-center justify-between gap-2">
 				<div className="flex min-w-0 flex-1 items-center gap-2">
-					<div className="flex h-10 w-10 shrink-0 items-center justify-center">
-						{logoUrl ? (
-							<img src={logoUrl} alt="Logo" className="h-10 w-10 object-contain" />
+					<div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-white/10">
+						{brandingIconUrl ? (
+							<img
+								src={brandingIconUrl}
+								alt={`${canteenName} icon`}
+								className="h-full w-full rounded-full object-cover"
+							/>
 						) : (
-							<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-red-900">
+							<div className="flex h-full w-full items-center justify-center text-white">
 								<ShoppingBag className="h-5 w-5" />
 							</div>
 						)}
 					</div>
 					<div className="min-w-0">
-						<h1 className="text-sm font-semibold leading-tight text-white">{canteenName}</h1>
+						<h1 className="text-sm font-semibold leading-tight text-white">
+							{canteenName}
+						</h1>
 						<p className="hidden truncate text-xs text-red-100 sm:block">
 							{schoolName}
 						</p>

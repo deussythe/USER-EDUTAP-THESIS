@@ -68,6 +68,10 @@ export function applyFavicon(faviconUrl: string | null) {
 	favicon.href = faviconUrl;
 }
 
+export function getBrandingIconUrl(settings: Pick<BrandingSettings, "faviconUrl" | "logoUrl">) {
+	return settings.faviconUrl ?? settings.logoUrl ?? null;
+}
+
 function mergeBrandingSettings(
 	info: Partial<BrandingSettings> | Record<string, unknown>,
 	branding: Partial<BrandingSettings> | Record<string, unknown>,
