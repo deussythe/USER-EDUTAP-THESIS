@@ -14,6 +14,7 @@ interface DailySpendingLimitProps {
 	dailyLimit: number;
 	transactions: Transaction[];
 	onLimitChange: (newLimit: number) => void;
+	onAddTransaction?: (amount: number) => void;
 }
 
 export function DailySpendingLimit({
@@ -21,10 +22,13 @@ export function DailySpendingLimit({
 	dailyLimit,
 	transactions,
 	onLimitChange,
+	onAddTransaction,
 }: DailySpendingLimitProps) {
 	const [isEditingLimit, setIsEditingLimit] = useState(false);
 	const [tempLimit, setTempLimit] = useState("");
 	const [errorMsg, setErrorMsg] = useState("");
+	const [spendInput, setSpendInput] = useState("");
+	const [spendError, setSpendError] = useState("");
 
 	const remaining = dailyLimit - todaySpent;
 	const percentageUsed = dailyLimit > 0 ? (todaySpent / dailyLimit) * 100 : 0;
@@ -81,6 +85,25 @@ export function DailySpendingLimit({
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
 		if (event.key === "Enter") handleSaveLimit();
 		if (event.key === "Escape") handleCancel();
+	};
+
+	const handleSpend = () => {
+		const amount = parseFloat(spendInput);
+		if (isNaN(amount) || amount <= 0) {
+			setSpendError("Please enter a valid amount.");
+			return;
+		}
+		if (todaySpent + amount > dailyLimit) {
+			setSpendError(`Exceeds your daily limit by PHP ${((todaySpent + amount) - dailyLimit).toLocaleString("en-PH", { maximumFractionDigits: 2 })}.`);
+			return;
+		}
+		setSpendError("");
+		setSpendInput("");
+		onAddTransaction?.(amount);
+	};
+
+	const handleSpendKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+		if (event.key === "Enter") handleSpend();
 	};
 
 	const getBarColor = () => {
@@ -233,6 +256,37 @@ export function DailySpendingLimit({
 					</div>
 				</div>
 			</div>
+
+			{onAddTransaction && (
+				<div className="shrink-0 flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+					<span className="text-xs font-semibold text-gray-400">PHP</span>
+					<input
+						type="number"
+						value={spendInput}
+						onChange={(e) => {
+							setSpendInput(e.target.value);
+							setSpendError("");
+						}}
+						onKeyDown={handleSpendKeyDown}
+						placeholder="Enter amount"
+						className="
+							w-full bg-transparent text-xs font-bold text-gray-900 placeholder:font-normal placeholder:text-gray-300
+							focus:outline-none
+							[appearance:textfield]
+							[&::-webkit-inner-spin-button]:appearance-none
+							[&::-webkit-outer-spin-button]:appearance-none
+						"
+					/>
+					<button
+						onClick={handleSpend}
+						className="rounded-md bg-red-950 px-2.5 py-1 text-[10px] font-semibold text-white transition-colors hover:bg-gray-700 whitespace-nowrap">
+						Add Spend
+					</button>
+					{spendError && (
+						<p className="absolute mt-8 text-[9px] font-medium text-red-500">{spendError}</p>
+					)}
+				</div>
+			)}
 
 			<div className="grid shrink-0 grid-cols-3 gap-2 border-t border-gray-100 pt-3">
 				{[
