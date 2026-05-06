@@ -52,6 +52,14 @@ const MONTHS = [
 	"December",
 ];
 
+const escapeHtml = (value: string) =>
+	value
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
+
 function CalendarPicker({
 	selectedDate,
 	onSelect,
@@ -224,40 +232,203 @@ export function RecentActivity({
 	}, []);
 
 	const handleExport = () => {
-		const rows: string[] = [];
-		rows.push(
-			["Date", "Time", "Description", "Items", "Category", "Type", "Amount (₱)"].join(","),
-		);
+		const exportDate = selectedDate ?? new Date().toISOString().slice(0, 10);
+		const generatedAt = new Date().toLocaleString("en-PH", {
+			month: "long",
+			day: "numeric",
+			year: "numeric",
+			hour: "2-digit",
+			minute: "2-digit",
+		});
+		const totalAmount = activities.reduce((sum, activity) => sum + Math.abs(activity.amount), 0);
 
-		for (const activity of activities) {
-			const itemsDetail = activity.items?.length
-				? activity.items
-						.map((i) => `${i.qty}x ${i.name} @₱${i.price.toFixed(2)}`)
-						.join("; ")
-				: activity.item;
+		const rowsHtml =
+			activities.length > 0
+				? activities
+						.map((activity, index) => {
+							const itemsDetail = activity.items?.length
+								? activity.items
+										.map(
+											(item) =>
+												`${item.qty}x ${escapeHtml(item.name)} @ PHP ${item.price.toFixed(2)}`,
+										)
+										.join(", ")
+								: escapeHtml(activity.item);
 
-			rows.push(
-				[
-					activity.date,
-					activity.time,
-					`"${activity.item.replace(/"/g, '""')}"`,
-					`"${itemsDetail.replace(/"/g, '""')}"`,
-					activity.category,
-					activity.type,
-					Math.abs(activity.amount).toFixed(2),
-				].join(","),
-			);
+							return `
+								<tr style="background:${index % 2 === 0 ? "#ffffff" : "#fafafa"};">
+									<td>${escapeHtml(activity.date)}</td>
+									<td>${escapeHtml(activity.time)}</td>
+									<td>${escapeHtml(activity.item)}</td>
+									<td>${itemsDetail}</td>
+									<td>${escapeHtml(activity.category)}</td>
+									<td style="text-transform:capitalize;">${escapeHtml(activity.type)}</td>
+									<td style="text-align:right; font-weight:700;">PHP ${Math.abs(activity.amount).toFixed(2)}</td>
+								</tr>
+							`;
+						})
+						.join("")
+				: `
+					<tr>
+						<td colspan="7" style="text-align:center; color:#6b7280; padding:24px 12px;">
+							No activity found for this period.
+						</td>
+					</tr>
+				`;
+
+		const html = `<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>EduTap Activity Report - ${exportDate}</title>
+	<style>
+		:root {
+			--brand: #8b0000;
+			--brand-soft: #fff2f2;
+			--text: #111827;
+			--muted: #6b7280;
+			--line: #e5e7eb;
 		}
+		* { box-sizing: border-box; }
+		body {
+			margin: 0;
+			font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+			background: #f7f8fa;
+			color: var(--text);
+			padding: 24px;
+		}
+		.report {
+			max-width: 980px;
+			margin: 0 auto;
+			background: #ffffff;
+			border: 1px solid var(--line);
+			border-radius: 18px;
+			overflow: hidden;
+		}
+		.header {
+			background: linear-gradient(120deg, #6e0000 0%, var(--brand) 100%);
+			color: #ffffff;
+			padding: 24px;
+		}
+		.header h1 {
+			margin: 0;
+			font-size: 1.6rem;
+			letter-spacing: 0.3px;
+		}
+		.header p {
+			margin: 6px 0 0;
+			font-size: 0.92rem;
+			opacity: 0.9;
+		}
+		.summary {
+			display: grid;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			gap: 12px;
+			padding: 18px 24px;
+			background: var(--brand-soft);
+			border-top: 1px solid #ffe0e0;
+			border-bottom: 1px solid #ffe0e0;
+		}
+		.card {
+			border: 1px solid #ffd3d3;
+			border-radius: 12px;
+			background: #ffffff;
+			padding: 12px 14px;
+		}
+		.card .label {
+			margin: 0 0 4px;
+			font-size: 0.76rem;
+			font-weight: 700;
+			color: var(--muted);
+			text-transform: uppercase;
+			letter-spacing: 0.4px;
+		}
+		.card .value {
+			margin: 0;
+			font-size: 1.08rem;
+			font-weight: 700;
+			color: var(--brand);
+		}
+		.table-wrap {
+			padding: 18px 24px 24px;
+		}
+		table {
+			width: 100%;
+			border-collapse: collapse;
+			font-size: 0.85rem;
+		}
+		th, td {
+			border: 1px solid var(--line);
+			padding: 10px 12px;
+			vertical-align: top;
+		}
+		th {
+			background: #f9fafb;
+			font-size: 0.76rem;
+			text-transform: uppercase;
+			letter-spacing: 0.4px;
+			color: #374151;
+			text-align: left;
+		}
+		@media (max-width: 760px) {
+			body { padding: 12px; }
+			.summary { grid-template-columns: 1fr; }
+			th, td { font-size: 0.78rem; padding: 8px; }
+		}
+	</style>
+</head>
+<body>
+	<article class="report">
+		<header class="header">
+			<h1>EduTap Recent Activity Report</h1>
+			<p>Generated on ${escapeHtml(generatedAt)}</p>
+		</header>
+		<section class="summary">
+			<div class="card">
+				<p class="label">Report Date</p>
+				<p class="value">${escapeHtml(exportDate)}</p>
+			</div>
+			<div class="card">
+				<p class="label">Transactions</p>
+				<p class="value">${activities.length}</p>
+			</div>
+			<div class="card">
+				<p class="label">Total Amount</p>
+				<p class="value">PHP ${totalAmount.toFixed(2)}</p>
+			</div>
+		</section>
+		<section class="table-wrap">
+			<table>
+				<thead>
+					<tr>
+						<th>Date</th>
+						<th>Time</th>
+						<th>Description</th>
+						<th>Items</th>
+						<th>Category</th>
+						<th>Type</th>
+						<th>Amount</th>
+					</tr>
+				</thead>
+				<tbody>
+					${rowsHtml}
+				</tbody>
+			</table>
+		</section>
+	</article>
+</body>
+</html>`;
 
-		const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+		const blob = new Blob([html], { type: "text/html;charset=utf-8;" });
 		const url = URL.createObjectURL(blob);
 		const link = document.createElement("a");
 		link.href = url;
-		link.download = `edutap-activity-${selectedDate ?? new Date().toISOString().slice(0, 10)}.csv`;
+		link.download = `edutap-activity-report-${exportDate}.html`;
+		onDownloadClick();
 		link.click();
 		URL.revokeObjectURL(url);
 	};
-
 	// Format selected date nicely for the button label
 	const formattedDate = selectedDate
 		? new Date(selectedDate + "T00:00:00").toLocaleDateString("en-PH", {
@@ -268,8 +439,8 @@ export function RecentActivity({
 		: null;
 
 	return (
-		<div className="flex h-80 flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-			<div className="mb-5 flex shrink-0 items-start justify-between gap-3">
+		<div className="flex h-[22rem] flex-col rounded-xl border border-gray-200 bg-white p-3.5 shadow-sm sm:h-80 sm:p-5">
+			<div className="mb-4 flex shrink-0 flex-col gap-3 sm:mb-5 sm:flex-row sm:items-start sm:justify-between">
 				<div className="min-w-0">
 					<h2 className="text-base font-bold text-gray-900">Recent Activity</h2>
 					{selectedDate && (
@@ -278,7 +449,7 @@ export function RecentActivity({
 						</p>
 					)}
 				</div>
-				<div className="flex items-center gap-2">
+				<div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
 					{/* Custom Date Picker Trigger */}
 					<div className="relative" ref={calendarRef}>
 						<button
@@ -289,7 +460,7 @@ export function RecentActivity({
 									selectedDate
 										? "border-[#8B0000] bg-red-50 text-[#8B0000]"
 										: "border-gray-300 text-gray-600 hover:bg-gray-50 hover:text-gray-700"
-								}`}>
+								} w-full justify-center sm:w-auto sm:justify-start`}>
 							<Calendar className="h-3.5 w-3.5" />
 							<span>{selectedDate ? "Change date" : "Filter by date"}</span>
 						</button>
@@ -323,7 +494,7 @@ export function RecentActivity({
 					<button
 						onClick={handleExport}
 						aria-label="Export activity"
-						className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-700">
+						className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-700 sm:w-auto sm:justify-start">
 						<Download className="h-3.5 w-3.5" />
 						<span>Export file</span>
 					</button>
@@ -335,7 +506,7 @@ export function RecentActivity({
 					{selectedDate ? `No activity on ${formattedDate}` : "No activity yet"}
 				</div>
 			) : (
-				<div className="space-y-2 overflow-y-auto pr-1 flex-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+				<div className="flex-1 space-y-2 overflow-y-auto pr-0.5 sm:pr-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
 					{activities.map((activity) => (
 						<div
 							key={activity.id}
@@ -356,13 +527,14 @@ export function RecentActivity({
 										{activity.item}
 									</div>
 									<div className="text-xs text-gray-400">
-										{activity.date} • {activity.time}
+										{activity.date} {"\u2022"} {activity.time}
 									</div>
 								</div>
 								<div className="flex w-full items-center justify-between gap-2 pl-11 sm:w-auto sm:justify-start sm:pl-0">
 									<span
 										className={`text-sm font-bold ${activity.amount < 0 ? "text-red-600" : "text-green-600"}`}>
-										{activity.amount < 0 ? "−" : "+"}₱
+										{activity.amount < 0 ? "-" : "+"}
+										{"\u20B1"}
 										{Math.abs(activity.amount).toFixed(2)}
 									</span>
 									{activity.items?.length > 0 &&
@@ -393,14 +565,18 @@ export function RecentActivity({
 													</span>
 												</div>
 												<span className="text-gray-500">
-													₱{(item.price * item.qty).toFixed(2)}
+													{"\u20B1"}
+													{(item.price * item.qty).toFixed(2)}
 												</span>
 											</div>
 										))}
 									</div>
 									<div className="mt-2 pt-2 border-t border-gray-200 flex justify-between text-xs font-semibold text-gray-700">
 										<span>Total</span>
-										<span>₱{Math.abs(activity.amount).toFixed(2)}</span>
+										<span>
+											{"\u20B1"}
+											{Math.abs(activity.amount).toFixed(2)}
+										</span>
 									</div>
 								</div>
 							)}

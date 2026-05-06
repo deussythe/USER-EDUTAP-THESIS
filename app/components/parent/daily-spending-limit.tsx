@@ -118,7 +118,7 @@ export function DailySpendingLimit({
 		: { color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" };
 
 	return (
-		<div className="flex h-80 flex-col justify-between rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+		<div className="flex min-h-[17.5rem] flex-col gap-4 rounded-xl border border-gray-200 bg-white p-3.5 shadow-sm sm:h-80 sm:justify-between sm:gap-0 sm:p-5">
 			<div className="flex shrink-0 items-center justify-between">
 				<div className="flex items-center gap-2">
 					<h2 className="text-base font-bold text-gray-900">Daily Spending Limit</h2>
@@ -258,7 +258,7 @@ export function DailySpendingLimit({
 			</div>
 
 			{onAddTransaction && (
-				<div className="shrink-0 flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+				<div className="relative shrink-0 flex flex-wrap items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
 					<span className="text-xs font-semibold text-gray-400">PHP</span>
 					<input
 						type="number"
@@ -283,7 +283,7 @@ export function DailySpendingLimit({
 						Add Spend
 					</button>
 					{spendError && (
-						<p className="absolute mt-8 text-[9px] font-medium text-red-500">{spendError}</p>
+						<p className="w-full text-[9px] font-medium text-red-500">{spendError}</p>
 					)}
 				</div>
 			)}

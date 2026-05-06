@@ -56,8 +56,8 @@ export function SpendingTrend({ transactions, dailyLimit }: SpendingTrendProps) 
 	};
 
 	return (
-		<div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-			<div className="flex items-center justify-between mb-4">
+		<div className="rounded-xl border border-gray-200 bg-white p-3.5 shadow-sm sm:p-5">
+			<div className="mb-3 flex flex-wrap items-center justify-between gap-2 sm:mb-4">
 				<h2 className="text-base font-bold text-gray-900">Spending Trend</h2>
 
 				<div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
@@ -76,7 +76,7 @@ export function SpendingTrend({ transactions, dailyLimit }: SpendingTrendProps) 
 				</div>
 			</div>
 
-			<div className="flex items-center gap-3 text-[10px] text-gray-400 uppercase tracking-wide mb-3">
+			<div className="mb-2.5 flex flex-wrap items-center gap-2.5 text-[10px] uppercase tracking-wide text-gray-400 sm:mb-3">
 				<span className="flex items-center gap-1">
 					<span className="inline-block w-2.5 h-2.5 rounded-sm bg-[#8B0000]" /> Spent
 				</span>
@@ -139,7 +139,7 @@ export function SpendingTrend({ transactions, dailyLimit }: SpendingTrendProps) 
 				</div>
 			</div>
 
-			<p className="text-[10px] text-gray-400 mt-3">
+			<p className="mt-2.5 text-[10px] text-gray-400 sm:mt-3">
 				Red bars = over daily limit · Darker bar = today
 			</p>
 		</div>

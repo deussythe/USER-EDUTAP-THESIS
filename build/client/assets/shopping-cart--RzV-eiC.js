@@ -1,4 +1,4 @@
-import{c}from"./branding-DNpdVmO5.js";/**
+import{c}from"./branding-BPPyj3Gh.js";/**
  * @license lucide-react v0.488.0 - ISC
  *
  * This source code is licensed under the ISC license.

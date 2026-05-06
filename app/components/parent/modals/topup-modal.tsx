@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { addDoc, collection, doc, onSnapshot } from "firebase/firestore";
+import { addDoc, collection, doc, onSnapshot, type FirestoreError } from "firebase/firestore";
 import { db } from "../../../configs/firebase";
 
 interface TopUpModalProps {
@@ -25,6 +25,15 @@ async function sendAdminNotification(
 			timestamp: Date.now(),
 		});
 	} catch (err) {
+		if (
+			typeof err === "object" &&
+			err !== null &&
+			"code" in err &&
+			(err as FirestoreError).code === "permission-denied"
+		) {
+			return;
+		}
+
 		console.error("Failed to send notification:", err);
 	}
 }
@@ -59,10 +68,15 @@ export function TopUpModal({ isOpen, onClose, onSubmit, studentName }: TopUpModa
 	if (!isOpen) return null;
 
 	const handleSubmit = async () => {
-		await onSubmit(amount, refNumber);
+		try {
+			await onSubmit(amount, refNumber);
+		} catch {
+			return;
+		}
+
 		await sendAdminNotification(
 			"New Top-Up Request",
-			`${studentName || "A guardian"} submitted a PHP ${amount} top-up request (Ref: ${refNumber}).`,
+			`${studentName || "Selected student"} has a PHP ${amount} top-up request (Ref: ${refNumber}).`,
 			"topup",
 		);
 		setAmount("");
@@ -85,9 +99,14 @@ export function TopUpModal({ isOpen, onClose, onSubmit, studentName }: TopUpModa
 					className="scrollbar-hide max-h-[90vh] w-full max-w-[400px] overflow-y-auto rounded-2xl bg-white p-4 shadow-xl sm:p-5"
 					onClick={(e) => e.stopPropagation()}>
 					<div className="mb-4 flex items-center justify-between">
-						<h2 className="text-xl font-bold text-gray-900">
-							Top Up via E-Wallet / E-Bank
-						</h2>
+						<div>
+							<h2 className="text-xl font-bold text-gray-900">
+								Top Up via E-Wallet / E-Bank
+							</h2>
+							<p className="mt-0.5 text-xs font-semibold text-[#8B0000]">
+								{studentName || "Selected student"}&apos;s wallet
+							</p>
+						</div>
 						<button
 							onClick={onClose}
 							className="rounded-full p-1 transition hover:bg-gray-100">
@@ -176,6 +195,14 @@ export function TopUpModal({ isOpen, onClose, onSubmit, studentName }: TopUpModa
 						</p>
 
 						<div className="mt-4 space-y-3 rounded-xl bg-gray-50 p-4">
+							<div>
+								<p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+									Student Wallet
+								</p>
+								<p className="text-base font-bold text-gray-900">
+									{studentName || "Selected student"}
+								</p>
+							</div>
 							<div>
 								<p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
 									Amount Paid

@@ -1,7 +1,12 @@
 "use client";
 
-import type React from "react";
-import { useState, useEffect } from "react";
+import {
+	type CSSProperties,
+	type FormEvent,
+	type KeyboardEvent,
+	useEffect,
+	useState,
+} from "react";
 import { ShoppingCart, AlertCircle, CheckCircle, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -38,7 +43,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
 	const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
 	// Background state
-	const [bgStyle, setBgStyle] = useState<React.CSSProperties>({
+	const [bgStyle, setBgStyle] = useState<CSSProperties>({
 		background: "linear-gradient(to bottom right, #450a0a, #7f1d1d, #7f1d1d)",
 	});
 
@@ -91,7 +96,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
 		}
 	}
 
-	const handleSubmit = async (e: React.FormEvent | React.KeyboardEvent) => {
+	const handleSubmit = async (e: FormEvent | KeyboardEvent) => {
 		e.preventDefault();
 		setError("");
 		setIsLoading(true);
@@ -142,7 +147,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
 		}
 	};
 
-	const handleForgotPassword = async (e: React.FormEvent | React.KeyboardEvent) => {
+	const handleForgotPassword = async (e: FormEvent | KeyboardEvent) => {
 		e.preventDefault();
 		setResetError("");
 		setResetSuccess(false);
@@ -178,7 +183,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
 
 	return (
 		// 👇 Replace the hardcoded gradient with dynamic bgStyle
-		<div className="flex min-h-screen items-center justify-center p-4" style={bgStyle}>
+		<div className="auth-shell flex min-h-screen items-center justify-center p-4" style={bgStyle}>
 			<div className="w-full max-w-md rounded-xl border border-red-700 bg-white shadow-2xl">
 				{/* Header */}
 				<div className="space-y-3 p-6 text-center bg-gradient-to-r from-red-900 to-red-800 rounded-t-xl">

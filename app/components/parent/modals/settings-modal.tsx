@@ -18,6 +18,8 @@ import {
 import {
 	updateProfile,
 	updatePassword,
+	updateEmail,
+	verifyBeforeUpdateEmail,
 	reauthenticateWithCredential,
 	EmailAuthProvider,
 } from "firebase/auth";
@@ -124,6 +126,9 @@ export function SettingsModal({
 	const [guardianName, setGuardianName] = useState(currentGuardianName);
 	const [contactNumber, setContactNumber] = useState(currentContactNumber);
 	const [guardianEmail, setGuardianEmail] = useState(currentGuardianEmail);
+	const [accountEmail, setAccountEmail] = useState(currentEmail);
+	const [emailCurrentPassword, setEmailCurrentPassword] = useState("");
+	const [showEmailPassword, setShowEmailPassword] = useState(false);
 	const [currentPassword, setCurrentPassword] = useState("");
 	const [newPassword, setNewPassword] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
@@ -131,6 +136,7 @@ export function SettingsModal({
 	const [showNew, setShowNew] = useState(false);
 	const [showConfirm, setShowConfirm] = useState(false);
 	const [loading, setLoading] = useState(false);
+	const [emailLoading, setEmailLoading] = useState(false);
 	const [successMsg, setSuccessMsg] = useState("");
 	const [errorMsg, setErrorMsg] = useState("");
 
@@ -143,6 +149,9 @@ export function SettingsModal({
 			setGuardianName(currentGuardianName);
 			setContactNumber(currentContactNumber);
 			setGuardianEmail(currentGuardianEmail);
+			setAccountEmail(currentEmail);
+			setEmailCurrentPassword("");
+			setShowEmailPassword(false);
 			setTab("student");
 			setSuccessMsg("");
 			setErrorMsg("");
@@ -208,6 +217,80 @@ export function SettingsModal({
 			setErrorMsg(err.message || "Failed to update guardian info.");
 		} finally {
 			setLoading(false);
+		}
+	};
+
+	const handleProfileUpdate = async (currentPassword: string, newEmail: string) => {
+		clearMessages();
+		const trimmedEmail = newEmail.trim().toLowerCase();
+
+		if (!trimmedEmail) {
+			setErrorMsg("Please enter your new email.");
+			return;
+		}
+
+		if (!currentPassword) {
+			setErrorMsg("Please enter your current password to continue.");
+			return;
+		}
+
+		const currentUser = auth.currentUser;
+		if (!currentUser || !currentUser.email) {
+			setErrorMsg("Not logged in");
+			return;
+		}
+
+		setEmailLoading(true);
+		let hasUpdatedAuthEmail = false;
+		try {
+			const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
+			await reauthenticateWithCredential(currentUser, credential);
+			await updateEmail(currentUser, trimmedEmail);
+			hasUpdatedAuthEmail = true;
+			await updateDoc(doc(db, "users", currentUser.uid), { email: trimmedEmail });
+
+			alert("Profile Updated");
+			await auth.signOut();
+		} catch (err: unknown) {
+			const error = err as { code?: string; message?: string };
+			if (error.code === "auth/wrong-password") {
+				setErrorMsg("Current password is incorrect.");
+			} else if (error.code === "auth/invalid-email") {
+				setErrorMsg("Please enter a valid email address.");
+			} else if (error.code === "auth/email-already-in-use") {
+				setErrorMsg("That email is already in use by another account.");
+			} else if (
+				error.code === "auth/requires-recent-login" ||
+				error.code === "auth/recent-login-required"
+			) {
+				setErrorMsg("Please log in again, then retry updating your profile.");
+			} else if (error.code === "auth/operation-not-allowed") {
+				try {
+					await verifyBeforeUpdateEmail(currentUser, trimmedEmail);
+					setEmailCurrentPassword("");
+					setSuccessMsg(
+						`Verification email sent to ${trimmedEmail}. Open the link to finish changing your login email.`,
+					);
+				} catch (verifyErr: unknown) {
+					const verifyError = verifyErr as { code?: string; message?: string };
+					setErrorMsg(
+						verifyError.message || "Failed to send verification email for address update.",
+					);
+				}
+			} else if (error.code === "permission-denied") {
+				if (hasUpdatedAuthEmail) {
+					alert("Profile Updated");
+					await auth.signOut();
+					return;
+				}
+				setErrorMsg(
+					"Missing or insufficient permissions. Allow users to update users/{uid}.email in Firestore rules.",
+				);
+			} else {
+				setErrorMsg(error.message || "Failed to update profile.");
+			}
+		} finally {
+			setEmailLoading(false);
 		}
 	};
 
@@ -381,6 +464,54 @@ export function SettingsModal({
 								{loading ? "Saving…" : "Save Guardian Info"}
 							</button>
 						</>
+					)}
+
+					{tab === "guardian" && (
+						<div className="space-y-3 border-t border-gray-100 pt-4">
+							<div className="flex items-center gap-2 mb-1">
+								<Mail className="h-4 w-4 text-[#8B0000]" />
+								<span className="text-sm font-bold text-gray-700">Account Email</span>
+							</div>
+							<EditableField
+								label="Login Email"
+								value={accountEmail}
+								onChange={setAccountEmail}
+								icon={<Mail className="h-4 w-4" />}
+								type="email"
+								placeholder="guardian@email.com"
+							/>
+							<div>
+								<label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">
+									Current Password
+								</label>
+								<div className="flex items-center gap-2.5 rounded-lg border border-gray-200 px-3 py-2.5 focus-within:border-[#8B0000] focus-within:ring-1 focus-within:ring-[#8B0000] transition-all">
+									<Lock className="h-4 w-4 text-gray-400 shrink-0" />
+									<input
+										type={showEmailPassword ? "text" : "password"}
+										value={emailCurrentPassword}
+										onChange={(e) => setEmailCurrentPassword(e.target.value)}
+										className="flex-1 text-sm text-gray-900 bg-transparent outline-none"
+										placeholder="Enter current password"
+									/>
+									<button
+										type="button"
+										onClick={() => setShowEmailPassword((v) => !v)}
+										className="text-gray-400 hover:text-gray-600">
+										{showEmailPassword ? (
+											<EyeOff className="h-4 w-4" />
+										) : (
+											<Eye className="h-4 w-4" />
+										)}
+									</button>
+								</div>
+							</div>
+							<button
+								onClick={() => void handleProfileUpdate(emailCurrentPassword, accountEmail)}
+								disabled={emailLoading}
+								className="w-full py-2.5 rounded-lg bg-[#8B0000] text-white text-sm font-semibold hover:bg-[#6f0000] disabled:opacity-60 transition-colors">
+								{emailLoading ? "Updating..." : "Update Account Email"}
+							</button>
+						</div>
 					)}
 
 					{tab === "password" && (

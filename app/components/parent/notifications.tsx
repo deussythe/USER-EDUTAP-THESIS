@@ -22,8 +22,8 @@ export function Notifications({
 	onClearAll,
 }: NotificationsProps) {
 	return (
-		<div className="flex h-80 flex-col overflow-hidden rounded-3xl border border-red-100/70 bg-white/95 shadow-[0_18px_50px_-22px_rgba(15,23,42,0.22)] backdrop-blur-sm">
-			<div className="border-b border-red-100/80 bg-gradient-to-br from-white via-red-50/50 to-red-100/40 px-4 py-4 sm:px-5">
+		<div className="flex h-[22rem] flex-col overflow-hidden rounded-3xl border border-red-100/70 bg-white/95 shadow-[0_18px_50px_-22px_rgba(15,23,42,0.22)] backdrop-blur-sm sm:h-80">
+			<div className="border-b border-red-100/80 bg-gradient-to-br from-white via-red-50/50 to-red-100/40 px-3.5 py-3.5 sm:px-5 sm:py-4">
 				<div className="flex shrink-0 items-start justify-between gap-3">
 					<div className="min-w-0">
 						<div className="flex items-center gap-2">
@@ -49,7 +49,7 @@ export function Notifications({
 						<button
 							onClick={onClearAll}
 							aria-label="Clear all notifications"
-							className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-900 shadow-sm hover:border-red-300 hover:bg-red-50">
+							className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-red-900 shadow-sm hover:border-red-300 hover:bg-red-50 sm:px-3 sm:py-2 sm:text-xs">
 							<Trash2 className="h-3.5 w-3.5" />
 							<span>Clear list</span>
 						</button>
@@ -57,7 +57,7 @@ export function Notifications({
 				</div>
 			</div>
 
-			<div className="flex-1 space-y-3 overflow-y-auto bg-gradient-to-b from-white to-red-50/30 px-4 py-4 pr-3 sm:px-5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+			<div className="flex-1 space-y-2.5 overflow-y-auto bg-gradient-to-b from-white to-red-50/30 px-3.5 py-3.5 pr-2.5 sm:space-y-3 sm:px-5 sm:py-4 sm:pr-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 				{notifications.length === 0 ? (
 					<div className="flex h-full min-h-48 flex-col items-center justify-center rounded-3xl border border-dashed border-red-200 bg-white/80 px-6 py-8 text-center shadow-inner">
 						<div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-700">

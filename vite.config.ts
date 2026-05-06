@@ -7,6 +7,7 @@ import path from "path";
 export default defineConfig({
 	plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],
 	resolve: {
+		dedupe: ["react", "react-dom"],
 		alias: {
 			"@": path.resolve(__dirname, "./app"),
 		},

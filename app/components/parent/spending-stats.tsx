@@ -94,11 +94,11 @@ export function SpendingStats({ transactions, dailyLimit }: SpendingStatsProps) 
 	];
 
 	return (
-		<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+		<div className="grid grid-cols-2 gap-2">
 			{stats.map(({ label, value, icon: Icon, color, bg }) => (
 				<div
 					key={label}
-					className="flex h-16 items-center gap-2.5 rounded-xl border border-gray-100 p-3"
+					className="flex min-h-[4rem] items-center gap-2 rounded-xl border border-gray-100 p-2.5 sm:gap-2.5 sm:p-3"
 					style={{ background: bg }}>
 					<div className="shrink-0 rounded-lg p-1.5" style={{ background: `${color}18` }}>
 						<Icon className="h-3.5 w-3.5" style={{ color }} />
@@ -107,7 +107,7 @@ export function SpendingStats({ transactions, dailyLimit }: SpendingStatsProps) 
 						<p className="mb-0.5 text-[10px] uppercase tracking-wide leading-tight text-gray-400">
 							{label}
 						</p>
-						<p className="truncate text-sm font-bold text-gray-800">{value}</p>
+						<p className="truncate text-xs font-bold text-gray-800 sm:text-sm">{value}</p>
 					</div>
 				</div>
 			))}
